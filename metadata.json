@@ -1,0 +1,6 @@
+{
+  "name": "Deal Scout",
+  "description": "Find the best deals, coupon codes, promo codes, and exclusive discounts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

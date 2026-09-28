@@ -1,0 +1,151 @@
+{
+  "entities": {
+    "Deal": {
+      "title": "Deal",
+      "description": "A coupon or promo-code deal offer for a merchant",
+      "type": "object",
+      "properties": {
+        "merchantName": {
+          "type": "string",
+          "description": "Name of the store or merchant"
+        },
+        "merchantLogo": {
+          "type": "string",
+          "description": "URL of the merchant logo image"
+        },
+        "title": {
+          "type": "string",
+          "description": "Offer headline or promo title"
+        },
+        "discount": {
+          "type": "string",
+          "description": "Discount amount or percentage (e.g. 20% OFF)"
+        },
+        "couponCode": {
+          "type": "string",
+          "description": "Coupon code to copy, or empty if no code needed"
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description of the deal"
+        },
+        "terms": {
+          "type": "string",
+          "description": "Terms and conditions if applicable"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category name for filtering"
+        },
+        "affiliateUrl": {
+          "type": "string",
+          "description": "Destination affiliate or promo URL"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "ISO date string for offer start"
+        },
+        "expirationDate": {
+          "type": "string",
+          "description": "ISO date string for expiration, or empty"
+        },
+        "featured": {
+          "type": "boolean",
+          "description": "Whether this deal is featured prominently on homepage"
+        },
+        "published": {
+          "type": "boolean",
+          "description": "Whether this deal is active and published"
+        },
+        "clicks": {
+          "type": "number",
+          "description": "Total click count for this deal"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp in ISO format"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp in ISO format"
+        }
+      },
+      "required": [
+        "merchantName",
+        "title",
+        "affiliateUrl",
+        "published"
+      ]
+    },
+    "ClickLog": {
+      "title": "ClickLog",
+      "description": "Individual click timestamp log for analytics",
+      "type": "object",
+      "properties": {
+        "dealId": {
+          "type": "string",
+          "description": "Referenced deal ID"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp of click"
+        },
+        "userAgent": {
+          "type": "string",
+          "description": "Visitor user agent"
+        },
+        "referrer": {
+          "type": "string",
+          "description": "Referrer URL (e.g. YouTube)"
+        }
+      },
+      "required": ["dealId", "timestamp"]
+    },
+    "SupportComment": {
+      "title": "SupportComment",
+      "description": "Anonymous user feedback, community question, or deal inquiry",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The comment content / question / feedback"
+        },
+        "name": {
+          "type": "string",
+          "description": "Author display moniker (defaults to Anonymous Scout)"
+        },
+        "dealId": {
+          "type": "string",
+          "description": "Optional deal ID this comment refers to"
+        },
+        "dealTitle": {
+          "type": "string",
+          "description": "Optional title of referenced deal"
+        },
+        "merchantName": {
+          "type": "string",
+          "description": "Optional merchant name referenced"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of when the comment was submitted"
+        }
+      },
+      "required": ["text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/deals/{dealId}": {
+      "schema": "Deal",
+      "description": "Collection of coupon and promo deals"
+    },
+    "/deals/{dealId}/clicks/{clickId}": {
+      "schema": "ClickLog",
+      "description": "Subcollection of click analytics events for a deal"
+    },
+    "/support_comments/{commentId}": {
+      "schema": "SupportComment",
+      "description": "Public community support comments with admin moderation"
+    }
+  }
+}
