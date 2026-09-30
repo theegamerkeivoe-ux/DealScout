@@ -132,6 +132,162 @@
         }
       },
       "required": ["text", "createdAt"]
+    },
+    "Affiliate": {
+      "title": "Affiliate",
+      "description": "Affiliate partner account with commission tracking",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Affiliate user email address"
+        },
+        "name": {
+          "type": "string",
+          "description": "Affiliate display or legal name"
+        },
+        "affiliateCode": {
+          "type": "string",
+          "description": "Unique promo referral tracking code"
+        },
+        "commissionRateFirst": {
+          "type": "number",
+          "description": "Commission rate for first purchase (0.20 = 20%)"
+        },
+        "commissionRateRecurring": {
+          "type": "number",
+          "description": "Recurring commission rate for subsequent purchases (0.10 = 10%)"
+        },
+        "totalEarned": {
+          "type": "number",
+          "description": "Lifetime commission earned in USD"
+        },
+        "pendingBalance": {
+          "type": "number",
+          "description": "Unpaid balance available for payout in USD"
+        },
+        "paidBalance": {
+          "type": "number",
+          "description": "Total paid out commission in USD"
+        },
+        "totalClicks": {
+          "type": "number",
+          "description": "Referral click count"
+        },
+        "totalConversions": {
+          "type": "number",
+          "description": "Number of promo code conversion uses"
+        },
+        "payoutMethod": {
+          "type": "string",
+          "description": "Selected payout method (PayPal, Bank, Crypto)"
+        },
+        "payoutDetails": {
+          "type": "string",
+          "description": "Payout destination email or account info"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the affiliate account (active, paused)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Account registration ISO timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last profile update ISO timestamp"
+        }
+      },
+      "required": ["email", "affiliateCode", "createdAt"]
+    },
+    "AffiliateConversion": {
+      "title": "AffiliateConversion",
+      "description": "Record of a promo code usage generating 20% first-time or 10% recurring commission",
+      "type": "object",
+      "properties": {
+        "affiliateId": {
+          "type": "string",
+          "description": "Affiliate user ID"
+        },
+        "affiliateEmail": {
+          "type": "string",
+          "description": "Affiliate account email"
+        },
+        "affiliateCode": {
+          "type": "string",
+          "description": "Affiliate referral code attributed"
+        },
+        "dealId": {
+          "type": "string",
+          "description": "ID of the deal promo code used"
+        },
+        "dealTitle": {
+          "type": "string",
+          "description": "Title of the deal promo code used"
+        },
+        "merchantName": {
+          "type": "string",
+          "description": "Store or merchant name"
+        },
+        "clientIdentifier": {
+          "type": "string",
+          "description": "Anonymized client browser ID used to detect first-time vs recurring customer"
+        },
+        "isFirstUse": {
+          "type": "boolean",
+          "description": "True if customer's first purchase (20%), false if recurring purchase (10%)"
+        },
+        "commissionRate": {
+          "type": "number",
+          "description": "Applied commission rate (0.20 or 0.10)"
+        },
+        "orderEstimatedValue": {
+          "type": "number",
+          "description": "Order basket value in USD"
+        },
+        "commissionAmount": {
+          "type": "number",
+          "description": "Earned commission in USD"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of conversion (pending, approved, paid)"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp of conversion"
+        }
+      },
+      "required": ["affiliateCode", "dealId", "clientIdentifier", "commissionAmount", "timestamp"]
+    },
+    "AffiliateClick": {
+      "title": "AffiliateClick",
+      "description": "Tracking event for an affiliate referral link click",
+      "type": "object",
+      "properties": {
+        "affiliateCode": {
+          "type": "string",
+          "description": "Affiliate code referenced"
+        },
+        "dealId": {
+          "type": "string",
+          "description": "Deal viewed or clicked"
+        },
+        "clientIdentifier": {
+          "type": "string",
+          "description": "Client identifier"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp of click"
+        },
+        "referrer": {
+          "type": "string",
+          "description": "HTTP referrer"
+        }
+      },
+      "required": ["affiliateCode", "timestamp"]
     }
   },
   "firestore": {
@@ -146,6 +302,18 @@
     "/support_comments/{commentId}": {
       "schema": "SupportComment",
       "description": "Public community support comments with admin moderation"
+    },
+    "/affiliates/{affiliateId}": {
+      "schema": "Affiliate",
+      "description": "Affiliate partner profiles and commission totals"
+    },
+    "/affiliate_conversions/{conversionId}": {
+      "schema": "AffiliateConversion",
+      "description": "Conversions and commissions earned from promo code uses"
+    },
+    "/affiliate_clicks/{clickId}": {
+      "schema": "AffiliateClick",
+      "description": "Click referral events tracking partner link traffic"
     }
   }
 }

@@ -24,9 +24,14 @@ import {
   MessageSquare,
   Clock,
   Shield,
+  Gift,
+  Award,
+  Repeat,
+  DollarSign,
+  Wallet,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Deal, SupportComment } from '../types';
+import { Deal, SupportComment, Affiliate, AffiliateConversion } from '../types';
 import {
   getAllDeals,
   createDeal,
@@ -40,6 +45,11 @@ import {
   getSupportComments,
   deleteSupportComment,
 } from '../services/commentService';
+import {
+  getAllAffiliates,
+  getAllConversions,
+  updateConversionStatus,
+} from '../services/affiliateService';
 import { testFirestoreConnection } from '../firebase';
 import { LogoUploader } from '../components/LogoUploader';
 
@@ -59,7 +69,7 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
   const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'add' | 'manage' | 'expired' | 'analytics' | 'comments' | 'settings'
+    'overview' | 'add' | 'manage' | 'expired' | 'analytics' | 'comments' | 'affiliates' | 'settings'
   >('overview');
 
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -80,6 +90,12 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
   const [commentSearch, setCommentSearch] = useState('');
   const [commentToDelete, setCommentToDelete] = useState<SupportComment | null>(null);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+
+  // Affiliate Program Admin State
+  const [affiliatesList, setAffiliatesList] = useState<Affiliate[]>([]);
+  const [conversionsList, setConversionsList] = useState<AffiliateConversion[]>([]);
+  const [loadingAffiliates, setLoadingAffiliates] = useState(false);
+  const [affiliateSearch, setAffiliateSearch] = useState('');
 
   // Form State for Add / Edit
   const emptyFormState = {
@@ -131,6 +147,36 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
     }
   };
 
+  // Load Affiliates & Conversions for admin review
+  const fetchAffiliatesAndConversions = async () => {
+    if (!isOwner) return;
+    setLoadingAffiliates(true);
+    try {
+      const [affs, convs] = await Promise.all([
+        getAllAffiliates(),
+        getAllConversions(),
+      ]);
+      setAffiliatesList(affs);
+      setConversionsList(convs);
+    } catch (err) {
+      console.error('Error fetching affiliates data for admin:', err);
+    } finally {
+      setLoadingAffiliates(false);
+    }
+  };
+
+  const handleMarkConversionPaid = async (conversionId: string) => {
+    try {
+      await updateConversionStatus(conversionId, 'paid');
+      setConversionsList((prev) =>
+        prev.map((c) => (c.id === conversionId ? { ...c, status: 'paid' } : c))
+      );
+      setStatusMessage({ type: 'success', text: 'Conversion marked as Paid.' });
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err?.message || 'Failed to update status.' });
+    }
+  };
+
   // Remove harmful comment handler
   const handleDeleteCommentConfirm = async () => {
     if (!commentToDelete) return;
@@ -152,6 +198,7 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
     if (isOwner) {
       fetchDeals();
       fetchComments();
+      fetchAffiliatesAndConversions();
     }
   }, [isOwner]);
 
@@ -680,6 +727,22 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
           >
             <MessageSquare className="w-4 h-4" />
             <span>Comments &amp; Moderation ({comments.length})</span>
+          </button>
+
+          <button
+            id="admin-tab-affiliates"
+            onClick={() => {
+              setActiveTab('affiliates');
+              fetchAffiliatesAndConversions();
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'affiliates'
+                ? 'bg-amber-400 text-gray-950 shadow-xs'
+                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800'
+            }`}
+          >
+            <Gift className="w-4 h-4 text-amber-500" />
+            <span>Affiliates &amp; Commissions ({affiliatesList.length})</span>
           </button>
 
           <button
@@ -1473,6 +1536,263 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* AFFILIATES & COMMISSIONS TAB */}
+        {activeTab === 'affiliates' && (
+          <div className="space-y-6">
+            {/* Header Banner */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/90 dark:border-gray-800 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-400 text-gray-950 font-bold flex items-center justify-center">
+                    <Gift className="w-4 h-4" />
+                  </div>
+                  <h2 className="font-display text-lg font-bold text-gray-900 dark:text-white">
+                    Affiliate Program &amp; Commission Management
+                  </h2>
+                  <span className="bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-yellow-400 text-xs font-bold px-2.5 py-0.5 rounded-lg border border-amber-300/60 tabular-nums">
+                    20% + 10% Recurring Model
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Partners earn 20% commission on a customer&apos;s first promo code use, and 10% recurring on all subsequent purchases.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={fetchAffiliatesAndConversions}
+                  disabled={loadingAffiliates}
+                  className="px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingAffiliates ? 'animate-spin' : ''}`} />
+                  <span>Refresh Affiliates</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
+                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
+                  Registered Affiliates
+                </span>
+                <span className="font-mono text-2xl font-black text-gray-900 dark:text-white mt-1 block">
+                  {affiliatesList.length}
+                </span>
+              </div>
+
+              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
+                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider block">
+                  Total Conversions
+                </span>
+                <span className="font-mono text-2xl font-black text-blue-600 dark:text-blue-400 mt-1 block">
+                  {conversionsList.length}
+                </span>
+              </div>
+
+              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
+                  Pending Payouts
+                </span>
+                <span className="font-mono text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 block">
+                  ${affiliatesList.reduce((sum, a) => sum + (a.pendingBalance || 0), 0).toFixed(2)}
+                </span>
+              </div>
+
+              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
+                  Total Commission Earned
+                </span>
+                <span className="font-mono text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+                  ${affiliatesList.reduce((sum, a) => sum + (a.totalEarned || 0), 0).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            {/* Affiliates List Table */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs overflow-hidden">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <h3 className="font-display text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                  Affiliate Partner Accounts ({affiliatesList.length})
+                </h3>
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={affiliateSearch}
+                    onChange={(e) => setAffiliateSearch(e.target.value)}
+                    placeholder="Search name, email, or code..."
+                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+              </div>
+
+              {affiliatesList.length === 0 ? (
+                <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400">
+                  No affiliates registered yet. Visitors can join via the Affiliate Program link.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 text-xs uppercase font-bold border-b border-gray-200 dark:border-gray-800">
+                      <tr>
+                        <th className="py-3 px-4">Partner Name &amp; Email</th>
+                        <th className="py-3 px-4">Promo Code</th>
+                        <th className="py-3 px-4 text-center">Conversions</th>
+                        <th className="py-3 px-4 text-right">Lifetime Earned</th>
+                        <th className="py-3 px-4 text-right">Pending Balance</th>
+                        <th className="py-3 px-4">Payout Info</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                      {affiliatesList
+                        .filter((a) => {
+                          if (!affiliateSearch.trim()) return true;
+                          const q = affiliateSearch.toLowerCase();
+                          return (
+                            a.name.toLowerCase().includes(q) ||
+                            a.email.toLowerCase().includes(q) ||
+                            a.affiliateCode.toLowerCase().includes(q)
+                          );
+                        })
+                        .map((aff) => (
+                          <tr key={aff.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/40">
+                            <td className="py-3 px-4">
+                              <span className="font-bold text-gray-900 dark:text-white block">{aff.name}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-mono block">{aff.email}</span>
+                            </td>
+                            <td className="py-3 px-4 font-mono text-xs font-bold text-amber-900 dark:text-yellow-400">
+                              <span className="bg-amber-100 dark:bg-amber-950/80 px-2 py-0.5 rounded border border-amber-300/50">
+                                {aff.affiliateCode}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-center font-bold text-gray-900 dark:text-white">
+                              {aff.totalConversions || 0}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                              ${(aff.totalEarned || 0).toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
+                              ${(aff.pendingBalance || 0).toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4 text-xs font-mono text-gray-600 dark:text-gray-300">
+                              <span className="uppercase text-[10px] font-bold text-gray-400 block">{aff.payoutMethod || 'paypal'}</span>
+                              <span>{aff.payoutDetails || aff.email}</span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
+                                {aff.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Conversions Log Table */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs overflow-hidden">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                <div>
+                  <h3 className="font-display text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                    All Promo Code Conversions &amp; Commission Log ({conversionsList.length})
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Orders attributed to partner promo codes with 20% first purchase and 10% recurring breakdown.
+                  </p>
+                </div>
+              </div>
+
+              {conversionsList.length === 0 ? (
+                <div className="text-center py-10 text-xs text-gray-500">
+                  No conversions recorded yet. When users apply promo codes, they will log here.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 text-xs uppercase font-bold border-b border-gray-200 dark:border-gray-800">
+                      <tr>
+                        <th className="py-3 px-4">Date</th>
+                        <th className="py-3 px-4">Affiliate Code</th>
+                        <th className="py-3 px-4">Store &amp; Deal</th>
+                        <th className="py-3 px-4 text-center">Tier</th>
+                        <th className="py-3 px-4 text-right">Basket ($)</th>
+                        <th className="py-3 px-4 text-right">Commission ($)</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                      {conversionsList.map((conv) => (
+                        <tr key={conv.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/40">
+                          <td className="py-3 px-4 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                            {new Date(conv.timestamp).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </td>
+                          <td className="py-3 px-4 font-mono text-xs font-bold text-amber-900 dark:text-yellow-400">
+                            {conv.affiliateCode}
+                          </td>
+                          <td className="py-3 px-4 max-w-xs">
+                            <span className="font-bold text-gray-900 dark:text-white block">{conv.merchantName}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate block">{conv.dealTitle}</span>
+                          </td>
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            {conv.isFirstUse ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-yellow-400 border border-amber-300/50">
+                                <Award className="w-3 h-3" /> 20% Initial
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/50">
+                                <Repeat className="w-3 h-3" /> 10% Recurring
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono text-xs text-gray-600 dark:text-gray-300">
+                            ${(conv.orderEstimatedValue || 0).toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            +${conv.commissionAmount.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <span
+                              className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                conv.status === 'paid'
+                                  ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300'
+                                  : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                              }`}
+                            >
+                              {conv.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            {conv.status !== 'paid' ? (
+                              <button
+                                onClick={() => handleMarkConversionPaid(conv.id)}
+                                className="px-2.5 py-1 text-xs font-bold bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors cursor-pointer"
+                              >
+                                Mark Paid
+                              </button>
+                            ) : (
+                              <span className="text-xs text-gray-400">Paid out</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

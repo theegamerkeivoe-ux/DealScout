@@ -5,9 +5,13 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signOut,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
+import { createOrGetAffiliate } from '../services/affiliateService';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -16,8 +20,10 @@ interface AuthContextType {
   ownerEmail: string;
   isSigningIn: boolean;
   popupBlocked: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: (forAdmin?: boolean) => Promise<User | null>;
   signInWithGoogleRedirect: () => Promise<void>;
+  signInWithEmail: (email: string, password?: string) => Promise<User>;
+  signUpWithEmail: (email: string, password: string, displayName?: string) => Promise<User>;
   logout: () => Promise<void>;
   authError: string | null;
   clearAuthError: () => void;
@@ -32,8 +38,10 @@ const AuthContext = createContext<AuthContextType>({
   ownerEmail: '',
   isSigningIn: false,
   popupBlocked: false,
-  signInWithGoogle: async () => {},
+  signInWithGoogle: async () => null,
   signInWithGoogleRedirect: async () => {},
+  signInWithEmail: async () => { throw new Error('Not implemented'); },
+  signUpWithEmail: async () => { throw new Error('Not implemented'); },
   logout: async () => {},
   authError: null,
   clearAuthError: () => {},
@@ -74,10 +82,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (result?.user) {
           const verified = await checkIsOwner(result.user);
           setIsOwner(verified);
-          if (!verified) {
-            setAuthError(
-              'Access denied. You are not authorized to access the Deal Scout admin dashboard.'
-            );
+          // Auto-sync affiliate profile
+          if (result.user.email) {
+            createOrGetAffiliate({
+              uid: result.user.uid,
+              email: result.user.email,
+              displayName: result.user.displayName,
+            }).catch(() => {});
           }
         }
       })
@@ -99,13 +110,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (user) {
         const verified = await checkIsOwner(user);
         setIsOwner(verified);
-        if (!verified) {
-          setAuthError(
-            'Access denied. You are not authorized to access the Deal Scout admin dashboard.'
-          );
-        } else {
-          setAuthError(null);
-          setPopupBlocked(false);
+        // Automatically ensure affiliate account exists
+        if (user.email) {
+          createOrGetAffiliate({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+          }).catch(() => {});
         }
       } else {
         setIsOwner(false);
@@ -116,11 +127,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return unsubscribe;
   }, []);
 
-  const signInWithGoogle = async () => {
-    // Guard against simultaneous or overlapping sign-in calls
+  const signInWithGoogle = async (forAdmin: boolean = false): Promise<User | null> => {
     if (isSigningInRef.current) {
       console.warn('Sign-in request is already in progress, skipping duplicate call.');
-      return;
+      return null;
     }
 
     isSigningInRef.current = true;
@@ -132,11 +142,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const result = await signInWithPopup(auth, googleProvider);
       const verified = await checkIsOwner(result.user);
       setIsOwner(verified);
-      if (!verified) {
+
+      if (forAdmin && !verified) {
         setAuthError(
           'Access denied. You are not authorized to access the Deal Scout admin dashboard.'
         );
       }
+
+      if (result.user.email) {
+        await createOrGetAffiliate({
+          uid: result.user.uid,
+          email: result.user.email,
+          displayName: result.user.displayName,
+        });
+      }
+
+      return result.user;
     } catch (err: any) {
       const errorCode = err?.code || '';
       const errorMsg = err?.message || '';
@@ -152,7 +173,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         errorCode === 'auth/cancelled-popup-request' ||
         errorMsg.includes('Pending promise was never set')
       ) {
-        // Harmless SDK state cancellation from previous attempt, avoid surfacing raw error
         console.warn('Ignored previous popup cancellation.');
       } else if (
         errorCode === 'auth/popup-closed-by-user' ||
@@ -162,6 +182,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setAuthError(errorMsg || 'Failed to sign in with Google. Please try again.');
       }
+      return null;
     } finally {
       isSigningInRef.current = false;
       setIsSigningIn(false);
@@ -182,6 +203,98 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAuthError(err?.message || 'Failed to initiate redirect sign in.');
     } finally {
       isSigningInRef.current = false;
+      setIsSigningIn(false);
+    }
+  };
+
+  const signInWithEmail = async (email: string, password?: string): Promise<User> => {
+    setIsSigningIn(true);
+    setAuthError(null);
+    try {
+      // If password provided, use password; otherwise fallback to default or quick affiliate access
+      const pwd = password || 'Affiliate2026!';
+      let userCredential;
+      try {
+        userCredential = await signInWithEmailAndPassword(auth, email.trim(), pwd);
+      } catch (err: any) {
+        // If user not found, auto-create to give seamless one-step email onboarding
+        if (err?.code === 'auth/user-not-found' || err?.code === 'auth/invalid-credential') {
+          userCredential = await createUserWithEmailAndPassword(auth, email.trim(), pwd);
+        } else {
+          throw err;
+        }
+      }
+
+      const user = userCredential.user;
+      setCurrentUser(user);
+      const verified = await checkIsOwner(user);
+      setIsOwner(verified);
+
+      if (user.email) {
+        await createOrGetAffiliate({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || email.split('@')[0],
+        });
+      }
+
+      return user;
+    } catch (err: any) {
+      console.error('Email sign in error:', err);
+      const msg = err?.code === 'auth/wrong-password'
+        ? 'Incorrect password for this email account.'
+        : err?.code === 'auth/invalid-email'
+        ? 'Please enter a valid email address.'
+        : err?.message || 'Failed to sign in with email.';
+      setAuthError(msg);
+      throw new Error(msg);
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const signUpWithEmail = async (
+    email: string,
+    password: string,
+    displayName?: string
+  ): Promise<User> => {
+    setIsSigningIn(true);
+    setAuthError(null);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email.trim(),
+        password
+      );
+      const user = userCredential.user;
+
+      if (displayName) {
+        await updateProfile(user, { displayName });
+      }
+
+      setCurrentUser(user);
+      const verified = await checkIsOwner(user);
+      setIsOwner(verified);
+
+      if (user.email) {
+        await createOrGetAffiliate({
+          uid: user.uid,
+          email: user.email,
+          displayName: displayName || email.split('@')[0],
+        });
+      }
+
+      return user;
+    } catch (err: any) {
+      console.error('Email sign up error:', err);
+      const msg = err?.code === 'auth/email-already-in-use'
+        ? 'An account with this email already exists. Please sign in instead.'
+        : err?.code === 'auth/weak-password'
+        ? 'Password should be at least 6 characters.'
+        : err?.message || 'Failed to create affiliate account.';
+      setAuthError(msg);
+      throw new Error(msg);
+    } finally {
       setIsSigningIn(false);
     }
   };
@@ -212,6 +325,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         popupBlocked,
         signInWithGoogle,
         signInWithGoogleRedirect,
+        signInWithEmail,
+        signUpWithEmail,
         logout,
         authError,
         clearAuthError,
@@ -223,4 +338,3 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 export const useAuth = () => useContext(AuthContext);
-

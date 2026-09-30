@@ -48,3 +48,48 @@ export interface SupportComment {
   status?: 'active' | 'hidden';
 }
 
+export interface Affiliate {
+  id: string;
+  email: string;
+  name: string;
+  affiliateCode: string;
+  commissionRateFirst: number; // 0.20 = 20%
+  commissionRateRecurring: number; // 0.10 = 10%
+  totalEarned: number;
+  pendingBalance: number;
+  paidBalance: number;
+  totalClicks: number;
+  totalConversions: number;
+  payoutMethod?: 'paypal' | 'bank' | 'crypto';
+  payoutDetails?: string;
+  status: 'active' | 'paused';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AffiliateConversion {
+  id: string;
+  affiliateId: string;
+  affiliateEmail: string;
+  affiliateCode: string;
+  dealId: string;
+  dealTitle: string;
+  merchantName: string;
+  clientIdentifier: string;
+  isFirstUse: boolean;
+  commissionRate: number; // 0.20 for first, 0.10 for recurring
+  orderEstimatedValue: number;
+  commissionAmount: number;
+  status: 'pending' | 'approved' | 'paid';
+  timestamp: string;
+}
+
+export interface AffiliateClick {
+  id?: string;
+  affiliateCode: string;
+  dealId?: string;
+  clientIdentifier?: string;
+  timestamp: string;
+  referrer?: string;
+}
+

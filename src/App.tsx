@@ -5,6 +5,7 @@ import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { HomePage } from './pages/HomePage';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { AffiliatePortal } from './pages/AffiliatePortal';
 import { DealDetailModal } from './components/DealDetailModal';
 import { LegalModal } from './components/LegalModal';
 import { Deal } from './types';
@@ -13,17 +14,33 @@ import {
   getDealById,
 } from './services/dealService';
 import { extractDealIdFromLocation } from './utils/shareUtils';
+import {
+  setStoredAffiliateCode,
+  recordAffiliateClick,
+} from './services/affiliateService';
 
 function MainApp() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // View state: 'home' | 'admin' | 'deal'
-  const [currentView, setCurrentView] = useState<'home' | 'admin' | 'deal'>('home');
+  // View state: 'home' | 'admin' | 'deal' | 'affiliates'
+  const [currentView, setCurrentView] = useState<'home' | 'admin' | 'deal' | 'affiliates'>('home');
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
   const [modalDeal, setModalDeal] = useState<Deal | null>(null);
   const [legalModalType, setLegalModalType] = useState<'privacy' | 'terms' | 'support' | null>(null);
+
+  // Check URL query parameters for affiliate referral code (?ref=... or ?aff=...)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const refCode = params.get('ref') || params.get('aff');
+      if (refCode) {
+        setStoredAffiliateCode(refCode);
+        recordAffiliateClick(refCode);
+      }
+    }
+  }, []);
 
   // Parse path and shared links from window.location
   const parseCurrentPath = useCallback((dealsList: Deal[]) => {
@@ -31,6 +48,11 @@ function MainApp() {
 
     if (path.startsWith('/admin')) {
       setCurrentView('admin');
+      return;
+    }
+
+    if (path.startsWith('/affiliates') || path.startsWith('/affiliate')) {
+      setCurrentView('affiliates');
       return;
     }
 
@@ -87,7 +109,7 @@ function MainApp() {
         return;
       }
     } else {
-      // If we are on home and not in a deal, close deal modal (e.g. user pressed back on mobile)
+      // If we are on home and not in a deal, close deal modal
       setModalDeal(null);
     }
 
@@ -99,34 +121,34 @@ function MainApp() {
   const loadDeals = async () => {
     setLoading(true);
     try {
-      // Pre-check for direct deal link on mobile so user gets instant response
-      const targetDeal = extractDealIdFromLocation();
-      if (targetDeal) {
-        getDealById(targetDeal).then((directDeal) => {
-          if (directDeal) {
-            setActiveDeal(directDeal);
-            setModalDeal(directDeal);
-          }
-        });
-      }
-
-      // Get published deals directly from Firestore
-      const fetched = await getPublishedDeals();
-
-      setDeals(fetched);
-      parseCurrentPath(fetched);
+      const list = await getPublishedDeals();
+      setDeals(list);
+      parseCurrentPath(list);
     } catch (err) {
-      console.error('Error loading deals:', err);
+      console.warn('Failed to load verified deals:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    // Immediate parse on mount
+    const immediateDealId = extractDealIdFromLocation();
+    if (immediateDealId) {
+      getDealById(immediateDealId)
+        .then((directDeal) => {
+          if (directDeal) {
+            setActiveDeal(directDeal);
+            setModalDeal(directDeal);
+          }
+        })
+        .catch(() => {});
+    }
+
     loadDeals();
   }, []);
 
-  // Handle browser back/forward buttons (essential for Android back button & mobile gestures)
+  // Re-parse when back/forward button is clicked
   useEffect(() => {
     const handlePopState = () => {
       parseCurrentPath(deals);
@@ -143,6 +165,13 @@ function MainApp() {
     if (view === 'admin') {
       setCurrentView('admin');
       window.history.pushState(null, '', '/admin');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (view === 'affiliates') {
+      setCurrentView('affiliates');
+      window.history.pushState(null, '', '/affiliates');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -189,6 +218,12 @@ function MainApp() {
       <main className="flex-1">
         {currentView === 'admin' ? (
           <AdminDashboard onNavigateHome={() => handleNavigate('home')} />
+        ) : currentView === 'affiliates' ? (
+          <AffiliatePortal
+            deals={deals}
+            onNavigateHome={() => handleNavigate('home')}
+            onSelectDeal={handleSelectDeal}
+          />
         ) : (
           <HomePage
             deals={deals}
@@ -245,4 +280,3 @@ export default function App() {
     </ThemeProvider>
   );
 }
-

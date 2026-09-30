@@ -12,11 +12,20 @@ import {
   Info,
   MessageSquare,
   Sparkles,
+  Gift,
+  Award,
+  Repeat,
+  CheckCircle2,
 } from 'lucide-react';
 import { Deal } from '../types';
 import { recordDealClick, isDealExpired } from '../services/dealService';
 import { ShareButton } from './ShareButton';
 import { getDealShareUrl } from '../utils/shareUtils';
+import {
+  getStoredAffiliateCode,
+  setStoredAffiliateCode,
+  recordAffiliateConversion,
+} from '../services/affiliateService';
 
 interface DealDetailModalProps {
   deal: Deal;
@@ -36,6 +45,23 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
   const [linkCopied, setLinkCopied] = useState(false);
   const [imgError, setImgError] = useState(false);
   const expired = isDealExpired(deal);
+
+  // Active Affiliate Referral Code
+  const [activeAffiliateCode, setActiveAffiliateCode] = useState<string | null>(() => getStoredAffiliateCode());
+  const [affiliateInput, setAffiliateInput] = useState('');
+  const [affiliateNotice, setAffiliateNotice] = useState<{ isFirst: boolean; amount: number; message: string } | null>(null);
+
+  // Check URL on open for ?ref= or ?aff=
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const refCode = params.get('ref') || params.get('aff');
+      if (refCode) {
+        setStoredAffiliateCode(refCode);
+        setActiveAffiliateCode(refCode.toUpperCase());
+      }
+    }
+  }, []);
 
   // Prevent background scrolling while modal is open on mobile
   useEffect(() => {
@@ -57,9 +83,48 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
     };
   }, [deal]);
 
+  // Record affiliate conversion helper
+  const triggerAffiliateConversion = async (codeToUse?: string) => {
+    const code = (codeToUse || activeAffiliateCode || '').trim().toUpperCase();
+    if (!code) return;
+
+    try {
+      const res = await recordAffiliateConversion({
+        affiliateCode: code,
+        dealId: deal.id,
+        dealTitle: deal.title,
+        merchantName: deal.merchantName,
+        discount: deal.discount,
+      });
+
+      if (res.success) {
+        setAffiliateNotice({
+          isFirst: res.isFirstUse,
+          amount: res.commissionAmount,
+          message: res.message,
+        });
+      }
+    } catch (err) {
+      console.warn('Affiliate conversion tracking non-blocking warning:', err);
+    }
+  };
+
+  const handleApplyAffiliateCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!affiliateInput.trim()) return;
+    const clean = affiliateInput.trim().toUpperCase();
+    setStoredAffiliateCode(clean);
+    setActiveAffiliateCode(clean);
+    triggerAffiliateConversion(clean);
+  };
+
   const handleCopyCode = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!deal.couponCode) return;
+
+    // Trigger affiliate conversion tracking
+    triggerAffiliateConversion();
+
     try {
       await navigator.clipboard.writeText(deal.couponCode);
       setCopied(true);
@@ -82,6 +147,9 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
 
   const handleGetDeal = async () => {
     setHasClickedDeal(true);
+
+    // Trigger affiliate conversion tracking
+    triggerAffiliateConversion();
 
     // If there's a code, auto-copy it
     if (deal.couponCode) {
@@ -291,6 +359,64 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
               </div>
             </div>
           )}
+
+          {/* Affiliate Referral Attribution Section */}
+          <div className="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 rounded-2xl p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="text-xs font-bold text-gray-900 dark:text-white">
+                  {activeAffiliateCode ? (
+                    <>
+                      Supporting Partner Code:{' '}
+                      <strong className="font-mono text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded">
+                        {activeAffiliateCode}
+                      </strong>
+                    </>
+                  ) : (
+                    'Have an affiliate partner promo code?'
+                  )}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-0.5">
+                  <Award className="w-3 h-3" /> 20% First
+                </span>
+                <span>•</span>
+                <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-0.5">
+                  <Repeat className="w-3 h-3" /> 10% Recurring
+                </span>
+              </div>
+            </div>
+
+            {/* If no code or user wants to add/change referral code */}
+            <form onSubmit={handleApplyAffiliateCode} className="flex gap-2">
+              <input
+                type="text"
+                value={affiliateInput}
+                onChange={(e) => setAffiliateInput(e.target.value)}
+                placeholder={activeAffiliateCode ? 'Change affiliate code (e.g. SCOUT-ALEX)' : 'Enter affiliate referral code (e.g. SCOUT-ALEX)'}
+                className="flex-1 text-xs px-3 py-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 font-mono uppercase"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl text-xs font-bold hover:bg-gray-800 dark:hover:bg-gray-100 cursor-pointer transition-colors shrink-0"
+              >
+                Apply Code
+              </button>
+            </form>
+
+            {/* Notification alert on conversion */}
+            {affiliateNotice && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  <strong>{affiliateNotice.isFirst ? '20% First-Time' : '10% Recurring'} Commission Recorded!</strong> Partner code {activeAffiliateCode} credited +${affiliateNotice.amount.toFixed(2)}.
+                </span>
+              </div>
+            )}
+          </div>
 
           {/* Large GET DEAL button with DealScout Badge */}
           <div className="space-y-3 pt-1">

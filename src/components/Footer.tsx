@@ -124,6 +124,18 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal }) => {
                 <ShieldCheck className="w-4 h-4 text-amber-500" />
                 <span>Admin Dashboard</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onNavigate('affiliates');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-900 dark:text-yellow-400 font-bold transition-all cursor-pointer"
+              >
+                <span className="text-amber-500">🎁</span>
+                <span>Affiliate Program (20% + 10%)</span>
+              </button>
               <p className="text-gray-400 dark:text-gray-500 text-[11px] leading-relaxed">
                 Publish new affiliate codes, manage deals, and moderate comments.
               </p>

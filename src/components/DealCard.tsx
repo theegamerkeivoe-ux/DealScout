@@ -3,6 +3,10 @@ import { ExternalLink, Copy, Check, Tag, ShieldCheck, Clock } from 'lucide-react
 import { Deal } from '../types';
 import { recordDealClick, isDealExpired } from '../services/dealService';
 import { ShareButton } from './ShareButton';
+import {
+  getStoredAffiliateCode,
+  recordAffiliateConversion,
+} from '../services/affiliateService';
 
 interface DealCardProps {
   deal: Deal;
@@ -15,9 +19,23 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onSelectDeal }) => {
   const [imgError, setImgError] = useState(false);
   const expired = isDealExpired(deal);
 
+  const triggerAffiliateConversion = () => {
+    const affCode = getStoredAffiliateCode();
+    if (affCode) {
+      recordAffiliateConversion({
+        affiliateCode: affCode,
+        dealId: deal.id,
+        dealTitle: deal.title,
+        merchantName: deal.merchantName,
+        discount: deal.discount,
+      }).catch(() => {});
+    }
+  };
+
   const handleCopyCode = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!deal.couponCode) return;
+    triggerAffiliateConversion();
     navigator.clipboard.writeText(deal.couponCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -27,6 +45,8 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onSelectDeal }) => {
     e.stopPropagation();
     if (isRedirecting) return;
     setIsRedirecting(true);
+
+    triggerAffiliateConversion();
 
     // If there's a coupon code, copy it automatically for a smooth experience
     if (deal.couponCode) {
