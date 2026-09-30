@@ -134,7 +134,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal }) => {
                 className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-900 dark:text-yellow-400 font-bold transition-all cursor-pointer"
               >
                 <span className="text-amber-500">🎁</span>
-                <span>Affiliate Program (20% + 10%)</span>
+                <span>Affiliate Program</span>
               </button>
               <p className="text-gray-400 dark:text-gray-500 text-[11px] leading-relaxed">
                 Publish new affiliate codes, manage deals, and moderate comments.

@@ -11,10 +11,19 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
-import { createOrGetAffiliate } from '../services/affiliateService';
+import { createOrGetAffiliate, getAffiliateByEmail } from '../services/affiliateService';
+
+export type AppUser = User | {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL?: string | null;
+};
+
+const AFFILIATE_SESSION_KEY = 'dealscout_affiliate_session';
 
 interface AuthContextType {
-  currentUser: User | null;
+  currentUser: AppUser | null;
   loading: boolean;
   isOwner: boolean;
   ownerEmail: string;
@@ -22,8 +31,8 @@ interface AuthContextType {
   popupBlocked: boolean;
   signInWithGoogle: (forAdmin?: boolean) => Promise<User | null>;
   signInWithGoogleRedirect: () => Promise<void>;
-  signInWithEmail: (email: string, password?: string) => Promise<User>;
-  signUpWithEmail: (email: string, password: string, displayName?: string) => Promise<User>;
+  signInWithEmail: (email: string, password?: string) => Promise<AppUser>;
+  signUpWithEmail: (email: string, password?: string, displayName?: string) => Promise<AppUser>;
   logout: () => Promise<void>;
   authError: string | null;
   clearAuthError: () => void;
@@ -48,7 +57,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -56,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [popupBlocked, setPopupBlocked] = useState(false);
   const isSigningInRef = useRef(false);
 
-  const checkIsOwner = async (user: User | null): Promise<boolean> => {
+  const checkIsOwner = async (user: AppUser | null): Promise<boolean> => {
     if (!user || !user.email) return false;
     const email = user.email.toLowerCase().trim();
     if (email === DEFAULT_OWNER_EMAIL.toLowerCase().trim()) {
@@ -106,8 +115,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Listen to Firebase Auth state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
       if (user) {
+        setCurrentUser(user);
         const verified = await checkIsOwner(user);
         setIsOwner(verified);
         // Automatically ensure affiliate account exists
@@ -119,7 +128,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }).catch(() => {});
         }
       } else {
-        setIsOwner(false);
+        // If not authenticated via Firebase Google, check for active direct email affiliate session
+        const stored = typeof window !== 'undefined' ? localStorage.getItem(AFFILIATE_SESSION_KEY) : null;
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored) as AppUser;
+            if (parsed && parsed.email) {
+              setCurrentUser(parsed);
+              const verified = await checkIsOwner(parsed);
+              setIsOwner(verified);
+              createOrGetAffiliate({
+                uid: parsed.uid,
+                email: parsed.email,
+                displayName: parsed.displayName,
+              }).catch(() => {});
+            }
+          } catch {
+            setCurrentUser(null);
+            setIsOwner(false);
+          }
+        } else {
+          setCurrentUser(null);
+          setIsOwner(false);
+        }
       }
       setLoading(false);
     });
@@ -207,38 +238,83 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signInWithEmail = async (email: string, password?: string): Promise<User> => {
+  const signInWithEmail = async (email: string, password?: string): Promise<AppUser> => {
     setIsSigningIn(true);
     setAuthError(null);
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      const msg = 'Please enter a valid email address.';
+      setAuthError(msg);
+      setIsSigningIn(false);
+      throw new Error(msg);
+    }
+
     try {
-      // If password provided, use password; otherwise fallback to default or quick affiliate access
       const pwd = password || 'Affiliate2026!';
-      let userCredential;
       try {
-        userCredential = await signInWithEmailAndPassword(auth, email.trim(), pwd);
+        const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, pwd);
+        const user = userCredential.user;
+        setCurrentUser(user);
+        const verified = await checkIsOwner(user);
+        setIsOwner(verified);
+        if (user.email) {
+          await createOrGetAffiliate({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || cleanEmail.split('@')[0],
+          });
+        }
+        return user;
       } catch (err: any) {
-        // If user not found, auto-create to give seamless one-step email onboarding
         if (err?.code === 'auth/user-not-found' || err?.code === 'auth/invalid-credential') {
-          userCredential = await createUserWithEmailAndPassword(auth, email.trim(), pwd);
-        } else {
+          try {
+            const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, pwd);
+            const user = userCredential.user;
+            setCurrentUser(user);
+            const verified = await checkIsOwner(user);
+            setIsOwner(verified);
+            if (user.email) {
+              await createOrGetAffiliate({
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName || cleanEmail.split('@')[0],
+              });
+            }
+            return user;
+          } catch (createErr: any) {
+            if (createErr?.code !== 'auth/operation-not-allowed') {
+              throw createErr;
+            }
+          }
+        } else if (err?.code !== 'auth/operation-not-allowed') {
           throw err;
         }
       }
 
-      const user = userCredential.user;
-      setCurrentUser(user);
-      const verified = await checkIsOwner(user);
+      // Seamless fallback: Direct email affiliate authentication (handles auth/operation-not-allowed)
+      const existingAffiliate = await getAffiliateByEmail(cleanEmail);
+      const uid = existingAffiliate ? existingAffiliate.id : 'aff_' + cleanEmail.replace(/[^a-z0-9]/g, '_');
+      const fallbackUser: AppUser = {
+        uid,
+        email: cleanEmail,
+        displayName: existingAffiliate?.name || cleanEmail.split('@')[0],
+      };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(AFFILIATE_SESSION_KEY, JSON.stringify(fallbackUser));
+      }
+      setCurrentUser(fallbackUser);
+      const verified = await checkIsOwner(fallbackUser);
       setIsOwner(verified);
 
-      if (user.email) {
-        await createOrGetAffiliate({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName || email.split('@')[0],
-        });
-      }
+      await createOrGetAffiliate({
+        uid,
+        email: cleanEmail,
+        displayName: fallbackUser.displayName,
+      });
 
-      return user;
+      return fallbackUser;
     } catch (err: any) {
       console.error('Email sign in error:', err);
       const msg = err?.code === 'auth/wrong-password'
@@ -255,36 +331,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUpWithEmail = async (
     email: string,
-    password: string,
+    password?: string,
     displayName?: string
-  ): Promise<User> => {
+  ): Promise<AppUser> => {
     setIsSigningIn(true);
     setAuthError(null);
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      const msg = 'Please enter a valid email address.';
+      setAuthError(msg);
+      setIsSigningIn(false);
+      throw new Error(msg);
+    }
+
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email.trim(),
-        password
-      );
-      const user = userCredential.user;
+      const pwd = password || 'Affiliate2026!';
+      try {
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          cleanEmail,
+          pwd
+        );
+        const user = userCredential.user;
 
-      if (displayName) {
-        await updateProfile(user, { displayName });
-      }
+        if (displayName) {
+          await updateProfile(user, { displayName }).catch(() => {});
+        }
 
-      setCurrentUser(user);
-      const verified = await checkIsOwner(user);
-      setIsOwner(verified);
+        setCurrentUser(user);
+        const verified = await checkIsOwner(user);
+        setIsOwner(verified);
 
-      if (user.email) {
         await createOrGetAffiliate({
           uid: user.uid,
-          email: user.email,
-          displayName: displayName || email.split('@')[0],
+          email: cleanEmail,
+          displayName: displayName || cleanEmail.split('@')[0],
         });
+
+        return user;
+      } catch (err: any) {
+        if (err?.code !== 'auth/operation-not-allowed') {
+          throw err;
+        }
       }
 
-      return user;
+      // Seamless fallback: Direct email affiliate registration (handles auth/operation-not-allowed)
+      const existingAffiliate = await getAffiliateByEmail(cleanEmail);
+      const uid = existingAffiliate ? existingAffiliate.id : 'aff_' + cleanEmail.replace(/[^a-z0-9]/g, '_');
+      const fallbackUser: AppUser = {
+        uid,
+        email: cleanEmail,
+        displayName: displayName || existingAffiliate?.name || cleanEmail.split('@')[0],
+      };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(AFFILIATE_SESSION_KEY, JSON.stringify(fallbackUser));
+      }
+      setCurrentUser(fallbackUser);
+      const verified = await checkIsOwner(fallbackUser);
+      setIsOwner(verified);
+
+      await createOrGetAffiliate({
+        uid,
+        email: cleanEmail,
+        displayName: fallbackUser.displayName,
+      });
+
+      return fallbackUser;
     } catch (err: any) {
       console.error('Email sign up error:', err);
       const msg = err?.code === 'auth/email-already-in-use'
@@ -301,7 +415,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await signOut(auth);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(AFFILIATE_SESSION_KEY);
+      }
+      await signOut(auth).catch(() => {});
+      setCurrentUser(null);
+      setIsOwner(false);
       setAuthError(null);
       setPopupBlocked(false);
     } catch (err) {

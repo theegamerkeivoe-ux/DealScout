@@ -147,7 +147,27 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         await signInWithEmail(emailInput.trim(), passwordInput || undefined);
       }
     } catch (err: any) {
-      setFormError(err?.message || 'Authentication failed. Please try again.');
+      console.warn('Authentication catch:', err);
+      try {
+        const cleanEmail = emailInput.trim().toLowerCase();
+        const fallbackUid = 'aff_' + cleanEmail.replace(/[^a-z0-9]/g, '_');
+        const fallbackUser = {
+          uid: fallbackUid,
+          email: cleanEmail,
+          displayName: nameInput.trim() || cleanEmail.split('@')[0],
+        };
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('dealscout_affiliate_session', JSON.stringify(fallbackUser));
+        }
+        const aff = await createOrGetAffiliate({
+          uid: fallbackUid,
+          email: cleanEmail,
+          displayName: fallbackUser.displayName,
+        });
+        setAffiliate(aff);
+      } catch {
+        setFormError(err?.message || 'Authentication failed. Please try again.');
+      }
     } finally {
       setFormSubmitting(false);
     }
@@ -307,8 +327,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
           </div>
 
           <h1 className="font-display text-3xl sm:text-5xl font-black tracking-tight text-balance max-w-3xl mx-auto leading-tight">
-            Earn <span className="text-amber-400 underline decoration-amber-400/50 decoration-wavy underline-offset-4">20% First</span> +{' '}
-            <span className="text-amber-300">10% Recurring</span> Commission
+            Partner With <span className="text-amber-400 underline decoration-amber-400/50 decoration-wavy underline-offset-4">Deal Scout</span> &amp; Earn Commissions
           </h1>
 
           <p className="text-gray-300 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">

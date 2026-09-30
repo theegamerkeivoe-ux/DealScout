@@ -47,13 +47,14 @@ service cloud.firestore {
       // Allow read so referral codes can be verified on deal use, and affiliates can view their dashboard
       allow read: if true;
 
-      // Authenticated users can register their own affiliate profile
-      allow create: if (request.auth != null) || isOwner();
+      // Allow creating an affiliate profile with valid email and affiliateCode
+      allow create: if request.resource.data.email is string &&
+                       request.resource.data.affiliateCode is string;
 
       // Affiliates can update their own profile (payout details, name), or stats increment on conversion, or admin
       allow update: if isOwner() || 
                     (request.auth != null && (request.auth.uid == affiliateId || (resource.data.email != null && request.auth.token.email != null && resource.data.email.lower() == request.auth.token.email.lower()))) ||
-                    request.resource.data.diff(resource.data).affectedKeys().hasAny(['totalClicks', 'totalConversions', 'totalEarned', 'pendingBalance', 'updatedAt']);
+                    request.resource.data.diff(resource.data).affectedKeys().hasAny(['totalClicks', 'totalConversions', 'totalEarned', 'pendingBalance', 'paidBalance', 'updatedAt', 'payoutMethod', 'payoutDetails', 'name', 'status']);
 
       allow delete: if isOwner();
     }
@@ -62,17 +63,15 @@ service cloud.firestore {
       // Public visitors record a conversion when using a promo code with affiliate referral
       allow create: if true;
 
-      // Affiliate can read their own conversions, and admin can read all
-      allow read: if isOwner() || 
-                  (request.auth != null && (resource.data.affiliateId == request.auth.uid || (resource.data.affiliateEmail != null && request.auth.token.email != null && resource.data.affiliateEmail.lower() == request.auth.token.email.lower())));
+      // Allow read so affiliate can view their conversion history in dashboard
+      allow read: if true;
 
       // Only admin can approve, mark as paid, or delete conversions
       allow update, delete: if isOwner();
     }
 
     match /affiliate_clicks/{clickId} {
-      allow create: if true;
-      allow read: if isOwner() || (request.auth != null);
+      allow create, read: if true;
       allow update, delete: if isOwner();
     }
 

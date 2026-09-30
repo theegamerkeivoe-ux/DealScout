@@ -107,9 +107,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Gift className="w-3.5 h-3.5 text-amber-500" />
               <span>Affiliate Program</span>
-              <span className="text-[10px] bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-yellow-400 font-bold px-1.5 py-0.2 rounded-full border border-amber-300/50">
-                20% + 10%
-              </span>
               {currentView === 'affiliates' && (
                 <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400 rounded-full" />
               )}
@@ -219,15 +216,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               onClick={() => handleNavClick('affiliates')}
-              className="text-left px-3 py-2.5 rounded-lg text-base font-semibold text-amber-500 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer flex items-center justify-between"
+              className="text-left px-3 py-2.5 rounded-lg text-base font-semibold text-amber-500 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer flex items-center gap-2"
             >
-              <div className="flex items-center gap-2">
-                <Gift className="w-4 h-4 text-amber-500" />
-                <span>Affiliate Program</span>
-              </div>
-              <span className="text-[10px] bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-yellow-400 font-bold px-2 py-0.5 rounded-full border border-amber-300/50">
-                20% + 10%
-              </span>
+              <Gift className="w-4 h-4 text-amber-500" />
+              <span>Affiliate Program</span>
             </button>
             {onOpenSupport && (
               <button
