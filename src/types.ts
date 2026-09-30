@@ -81,8 +81,9 @@ export interface AffiliateConversion {
   commissionRate: number; // 0.20 for first, 0.10 for recurring
   orderEstimatedValue: number;
   commissionAmount: number;
-  status: 'pending' | 'approved' | 'paid';
+  status: 'pending' | 'approved' | 'paid' | 'rejected';
   timestamp: string;
+  confirmedAt?: string;
 }
 
 export interface AffiliateClick {

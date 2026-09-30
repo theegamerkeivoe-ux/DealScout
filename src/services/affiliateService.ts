@@ -358,22 +358,15 @@ export async function recordAffiliateConversion(params: {
     commissionRate,
     orderEstimatedValue,
     commissionAmount,
-    status: 'approved',
+    status: 'pending', // Strictly pending until admin confirms it!
     timestamp: now,
   };
 
   try {
-    // 1. Save conversion
+    // 1. Save pending conversion
     await setDoc(doc(db, CONVERSIONS_COLLECTION, conversionId), conversion);
 
-    // 2. Increment affiliate totals
-    const affRef = doc(db, AFFILIATES_COLLECTION, affiliate.id);
-    await updateDoc(affRef, {
-      totalEarned: increment(commissionAmount),
-      pendingBalance: increment(commissionAmount),
-      totalConversions: increment(1),
-      updatedAt: now,
-    });
+    // Note: Affiliate balances are NOT incremented yet until the admin confirms this conversion!
 
     sessionStorage.setItem(recentDedupeKey, Date.now().toString());
 
@@ -384,8 +377,8 @@ export async function recordAffiliateConversion(params: {
       commissionRate,
       commissionAmount,
       message: isFirstUse
-        ? `Success! 20% first-time commission ($${commissionAmount.toFixed(2)}) earned for affiliate ${cleanCode} using code "${promoCode}".`
-        : `Success! 10% recurring commission ($${commissionAmount.toFixed(2)}) earned for affiliate ${cleanCode} using code "${promoCode}".`,
+        ? `Promo code "${promoCode}" submitted! 20% first-time commission ($${commissionAmount.toFixed(2)}) is pending admin confirmation.`
+        : `Promo code "${promoCode}" submitted! 10% recurring commission ($${commissionAmount.toFixed(2)}) is pending admin confirmation.`,
     };
   } catch (err: any) {
     console.error('Error saving affiliate conversion:', err);
@@ -401,7 +394,8 @@ export async function recordAffiliateConversion(params: {
 }
 
 /**
- * Fetch conversions for an affiliate
+ * Fetch confirmed conversions for an affiliate (Promoter view)
+ * STRICT RULE: Only conversions confirmed & approved by the admin are shown to the promoter!
  */
 export async function getAffiliateConversions(
   affiliateId: string,
@@ -434,12 +428,17 @@ export async function getAffiliateConversions(
       });
     }
 
+    // STRICT: Only return conversions confirmed by the admin ('approved' or 'paid')
+    const confirmedOnly = conversions.filter(
+      (c) => c.status === 'approved' || c.status === 'paid'
+    );
+
     // Sort descending by timestamp
-    conversions.sort(
+    confirmedOnly.sort(
       (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
 
-    return conversions;
+    return confirmedOnly;
   } catch (err) {
     console.warn('Error fetching affiliate conversions:', err);
     return [];
@@ -467,7 +466,7 @@ export async function getAllAffiliates(): Promise<Affiliate[]> {
 }
 
 /**
- * Fetch all conversions (for Admin dashboard)
+ * Fetch all conversions (for Admin dashboard, including pending)
  */
 export async function getAllConversions(): Promise<AffiliateConversion[]> {
   try {
@@ -487,12 +486,79 @@ export async function getAllConversions(): Promise<AffiliateConversion[]> {
 }
 
 /**
+ * Admin action: Confirm & Approve a pending conversion
+ * This updates status to 'approved', increments the promoter's balance, and makes it visible in their portal!
+ */
+export async function confirmConversion(conversionId: string): Promise<boolean> {
+  try {
+    const convRef = doc(db, CONVERSIONS_COLLECTION, conversionId);
+    const snap = await getDoc(convRef);
+    if (!snap.exists()) return false;
+    const conv = snap.data() as AffiliateConversion;
+
+    // Prevent double approving
+    if (conv.status === 'approved' || conv.status === 'paid') return true;
+
+    const now = new Date().toISOString();
+
+    // 1. Mark as approved
+    await updateDoc(convRef, {
+      status: 'approved',
+      confirmedAt: now,
+    });
+
+    // 2. Increment promoter's balance now that admin confirmed
+    const affRef = doc(db, AFFILIATES_COLLECTION, conv.affiliateId);
+    await updateDoc(affRef, {
+      totalEarned: increment(conv.commissionAmount),
+      pendingBalance: increment(conv.commissionAmount),
+      totalConversions: increment(1),
+      updatedAt: now,
+    });
+
+    return true;
+  } catch (err) {
+    console.error('Failed to confirm conversion:', err);
+    return false;
+  }
+}
+
+/**
+ * Admin action: Reject a pending conversion
+ */
+export async function rejectConversion(conversionId: string): Promise<boolean> {
+  try {
+    const convRef = doc(db, CONVERSIONS_COLLECTION, conversionId);
+    await updateDoc(convRef, {
+      status: 'rejected',
+      rejectedAt: new Date().toISOString(),
+    });
+    return true;
+  } catch (err) {
+    console.error('Failed to reject conversion:', err);
+    return false;
+  }
+}
+
+/**
  * Mark a conversion or payout status (Admin action)
  */
 export async function updateConversionStatus(
   conversionId: string,
-  status: 'pending' | 'approved' | 'paid'
+  status: 'pending' | 'approved' | 'paid' | 'rejected'
 ): Promise<void> {
   const docRef = doc(db, CONVERSIONS_COLLECTION, conversionId);
+  const snap = await getDoc(docRef);
+  if (snap.exists()) {
+    const conv = snap.data() as AffiliateConversion;
+    if (status === 'paid' && conv.status !== 'paid') {
+      const affRef = doc(db, AFFILIATES_COLLECTION, conv.affiliateId);
+      await updateDoc(affRef, {
+        pendingBalance: increment(-conv.commissionAmount),
+        paidBalance: increment(conv.commissionAmount),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
   await updateDoc(docRef, { status });
 }

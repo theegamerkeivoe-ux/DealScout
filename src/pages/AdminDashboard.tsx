@@ -29,6 +29,7 @@ import {
   Repeat,
   DollarSign,
   Wallet,
+  Check,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Deal, SupportComment, Affiliate, AffiliateConversion } from '../types';
@@ -49,6 +50,8 @@ import {
   getAllAffiliates,
   getAllConversions,
   updateConversionStatus,
+  confirmConversion,
+  rejectConversion,
 } from '../services/affiliateService';
 import { testFirestoreConnection } from '../firebase';
 import { LogoUploader } from '../components/LogoUploader';
@@ -61,6 +64,7 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
     popupBlocked,
     signInWithGoogle,
     signInWithGoogleRedirect,
+    signInAsOwner,
     logout,
     authError,
     clearAuthError,
@@ -174,6 +178,47 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
       setStatusMessage({ type: 'success', text: 'Conversion marked as Paid.' });
     } catch (err: any) {
       setStatusMessage({ type: 'error', text: err?.message || 'Failed to update status.' });
+    }
+  };
+
+  const handleConfirmConversion = async (conversionId: string) => {
+    try {
+      const ok = await confirmConversion(conversionId);
+      if (ok) {
+        setConversionsList((prev) =>
+          prev.map((c) => (c.id === conversionId ? { ...c, status: 'approved' } : c))
+        );
+        setStatusMessage({
+          type: 'success',
+          text: 'Conversion confirmed & approved! It is now visible to the promoter with commission credited.',
+        });
+        await fetchAffiliatesAndConversions();
+      } else {
+        setStatusMessage({ type: 'error', text: 'Failed to confirm conversion.' });
+      }
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err?.message || 'Error confirming conversion.' });
+    }
+  };
+
+  const handleRejectConversion = async (conversionId: string) => {
+    if (!window.confirm('Are you sure you want to decline/reject this conversion? It will not be credited or shown to the promoter.')) return;
+    try {
+      const ok = await rejectConversion(conversionId);
+      if (ok) {
+        setConversionsList((prev) =>
+          prev.map((c) => (c.id === conversionId ? { ...c, status: 'rejected' } : c))
+        );
+        setStatusMessage({
+          type: 'success',
+          text: 'Conversion declined. It will not be credited or shown to the promoter.',
+        });
+        await fetchAffiliatesAndConversions();
+      } else {
+        setStatusMessage({ type: 'error', text: 'Failed to decline conversion.' });
+      }
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err?.message || 'Error declining conversion.' });
     }
   };
 
@@ -481,11 +526,28 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
                 type="button"
                 onClick={signInWithGoogleRedirect}
                 disabled={isSigningIn}
-                className="w-full text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white py-2 transition-colors flex items-center justify-center gap-1.5"
+                className="w-full text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white py-1.5 transition-colors flex items-center justify-center gap-1.5"
               >
                 <span>Having trouble? Try redirect sign-in</span>
               </button>
             )}
+
+            {/* Direct Owner Login Button */}
+            <div className="pt-3 border-t border-gray-200 dark:border-gray-800 space-y-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block text-center">
+                Or Direct Owner Email Access
+              </span>
+              <button
+                type="button"
+                id="admin-direct-owner-btn"
+                onClick={() => signInAsOwner('theegamerkeivoe@gmail.com')}
+                disabled={isSigningIn}
+                className="w-full bg-amber-400 hover:bg-amber-500 active:bg-amber-600 text-gray-950 font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4 text-gray-950" />
+                <span>Sign In as Owner (theegamerkeivoe@gmail.com)</span>
+              </button>
+            </div>
           </div>
 
           <button
@@ -1574,43 +1636,170 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
             </div>
 
             {/* Quick Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
-                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
-                  Registered Affiliates
-                </span>
-                <span className="font-mono text-2xl font-black text-gray-900 dark:text-white mt-1 block">
-                  {affiliatesList.length}
-                </span>
-              </div>
+            {(() => {
+              const pendingConversions = conversionsList.filter((c) => c.status === 'pending');
+              const approvedConversions = conversionsList.filter((c) => c.status === 'approved' || c.status === 'paid');
 
-              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
-                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider block">
-                  Total Conversions
-                </span>
-                <span className="font-mono text-2xl font-black text-blue-600 dark:text-blue-400 mt-1 block">
-                  {conversionsList.length}
-                </span>
-              </div>
+              return (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
+                      <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
+                        Registered Affiliates
+                      </span>
+                      <span className="font-mono text-2xl font-black text-gray-900 dark:text-white mt-1 block">
+                        {affiliatesList.length}
+                      </span>
+                    </div>
 
-              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
-                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
-                  Pending Payouts
-                </span>
-                <span className="font-mono text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 block">
-                  ${affiliatesList.reduce((sum, a) => sum + (a.pendingBalance || 0), 0).toFixed(2)}
-                </span>
-              </div>
+                    <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border-2 border-amber-400/70 dark:border-amber-500/50 shadow-xs bg-amber-50/20 dark:bg-amber-950/20">
+                      <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" /> Pending Confirmations
+                      </span>
+                      <span className="font-mono text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 block">
+                        {pendingConversions.length}
+                      </span>
+                    </div>
 
-              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
-                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
-                  Total Commission Earned
-                </span>
-                <span className="font-mono text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
-                  ${affiliatesList.reduce((sum, a) => sum + (a.totalEarned || 0), 0).toFixed(2)}
-                </span>
-              </div>
-            </div>
+                    <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
+                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider block">
+                        Approved Conversions
+                      </span>
+                      <span className="font-mono text-2xl font-black text-blue-600 dark:text-blue-400 mt-1 block">
+                        {approvedConversions.length}
+                      </span>
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
+                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
+                        Confirmed Commissions
+                      </span>
+                      <span className="font-mono text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+                        ${affiliatesList.reduce((sum, a) => sum + (a.totalEarned || 0), 0).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* PENDING CONVERSIONS AWAITING CONFIRMATION SECTION */}
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border-2 border-amber-400/80 dark:border-amber-500/60 shadow-md overflow-hidden">
+                    <div className="p-5 border-b border-amber-200/80 dark:border-amber-900/50 bg-amber-50/80 dark:bg-amber-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-amber-400 text-gray-950 font-bold flex items-center justify-center shrink-0 shadow-xs">
+                          <Clock className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-display text-base font-black text-gray-900 dark:text-white uppercase tracking-wider">
+                              Pending Conversions Requiring Approval ({pendingConversions.length})
+                            </h3>
+                            {pendingConversions.length > 0 && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-gray-950 animate-pulse">
+                                Action Required
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                            Conversions remain hidden from the promoter until you click <strong>Confirm &amp; Approve</strong>.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {pendingConversions.length === 0 ? (
+                      <div className="p-8 text-center text-xs text-gray-500 dark:text-gray-400 flex flex-col items-center justify-center gap-2">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                        <span className="font-semibold text-gray-700 dark:text-gray-300">
+                          All caught up! No pending conversions waiting for review.
+                        </span>
+                        <span className="text-[11px] text-gray-400">
+                          When shoppers click affiliate links and use promo codes, conversions will queue here for your confirmation.
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                          <thead className="bg-amber-50/50 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 text-xs uppercase font-bold border-b border-amber-200/60 dark:border-gray-800">
+                            <tr>
+                              <th className="py-3 px-4">Date</th>
+                              <th className="py-3 px-4">Affiliate Code</th>
+                              <th className="py-3 px-4">Store &amp; Offer</th>
+                              <th className="py-3 px-4 text-center">Tier</th>
+                              <th className="py-3 px-4 text-right">Order Basket</th>
+                              <th className="py-3 px-4 text-right">Commission ($)</th>
+                              <th className="py-3 px-4 text-center">Admin Decision</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-amber-100 dark:divide-gray-800">
+                            {pendingConversions.map((conv) => (
+                              <tr key={conv.id} className="hover:bg-amber-50/40 dark:hover:bg-amber-950/20 transition-colors">
+                                <td className="py-3.5 px-4 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                  {new Date(conv.timestamp).toLocaleDateString(undefined, {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </td>
+                                <td className="py-3.5 px-4 font-mono text-xs font-black text-amber-700 dark:text-yellow-400">
+                                  {conv.affiliateCode}
+                                </td>
+                                <td className="py-3.5 px-4 max-w-xs">
+                                  <span className="font-bold text-gray-900 dark:text-white block">{conv.merchantName}</span>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400 truncate block">{conv.dealTitle}</span>
+                                  {conv.couponCode && (
+                                    <span className="inline-block mt-0.5 font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-300/50">
+                                      Code: {conv.couponCode}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                  {conv.isFirstUse ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-yellow-400 border border-amber-300/50">
+                                      <Award className="w-3 h-3" /> 20% Initial
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/50">
+                                      <Repeat className="w-3 h-3" /> 10% Recurring
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-mono text-xs text-gray-600 dark:text-gray-300">
+                                  ${(conv.orderEstimatedValue || 0).toFixed(2)}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                  +${conv.commissionAmount.toFixed(2)}
+                                </td>
+                                <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleConfirmConversion(conv.id)}
+                                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                                      title="Confirm this conversion, credit promoter, and show in their portal"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                      <span>Confirm &amp; Approve</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRejectConversion(conv.id)}
+                                      className="px-2.5 py-1.5 border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                                      title="Decline this conversion"
+                                    >
+                                      Decline
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Affiliates List Table */}
             <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs overflow-hidden">
@@ -1696,108 +1885,118 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
               )}
             </div>
 
-            {/* Conversions Log Table */}
-            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs overflow-hidden">
-              <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-                <div>
-                  <h3 className="font-display text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-                    All Promo Code Conversions &amp; Commission Log ({conversionsList.length})
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Orders attributed to partner promo codes with 20% first purchase and 10% recurring breakdown.
-                  </p>
-                </div>
-              </div>
+            {/* Confirmed Conversions Log Table */}
+            {(() => {
+              const confirmedList = conversionsList.filter((c) => c.status !== 'pending');
 
-              {conversionsList.length === 0 ? (
-                <div className="text-center py-10 text-xs text-gray-500">
-                  No conversions recorded yet. When users apply promo codes, they will log here.
+              return (
+                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs overflow-hidden">
+                  <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-display text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                        Confirmed Promo Code Conversions &amp; Payout Log ({confirmedList.length})
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        Approved conversions visible to promoters with commission credited.
+                      </p>
+                    </div>
+                  </div>
+
+                  {confirmedList.length === 0 ? (
+                    <div className="text-center py-10 text-xs text-gray-500">
+                      No confirmed conversions yet. Click &quot;Confirm &amp; Approve&quot; in the section above to approve pending conversions.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead className="bg-gray-50 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 text-xs uppercase font-bold border-b border-gray-200 dark:border-gray-800">
+                          <tr>
+                            <th className="py-3 px-4">Date</th>
+                            <th className="py-3 px-4">Affiliate Code</th>
+                            <th className="py-3 px-4">Store &amp; Deal</th>
+                            <th className="py-3 px-4 text-center">Tier</th>
+                            <th className="py-3 px-4 text-right">Basket ($)</th>
+                            <th className="py-3 px-4 text-right">Commission ($)</th>
+                            <th className="py-3 px-4 text-center">Status</th>
+                            <th className="py-3 px-4 text-right">Payout</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                          {confirmedList.map((conv) => (
+                            <tr key={conv.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/40">
+                              <td className="py-3 px-4 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                {new Date(conv.timestamp).toLocaleDateString(undefined, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </td>
+                              <td className="py-3 px-4 font-mono text-xs font-bold text-amber-900 dark:text-yellow-400">
+                                {conv.affiliateCode}
+                              </td>
+                              <td className="py-3 px-4 max-w-xs">
+                                <span className="font-bold text-gray-900 dark:text-white block">{conv.merchantName}</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 truncate block">{conv.dealTitle}</span>
+                                {conv.couponCode && (
+                                  <span className="inline-block mt-0.5 font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200/50">
+                                    Code: {conv.couponCode}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                                {conv.isFirstUse ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-yellow-400 border border-amber-300/50">
+                                    <Award className="w-3 h-3" /> 20% Initial
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/50">
+                                    <Repeat className="w-3 h-3" /> 10% Recurring
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono text-xs text-gray-600 dark:text-gray-300">
+                                ${(conv.orderEstimatedValue || 0).toFixed(2)}
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                +${conv.commissionAmount.toFixed(2)}
+                              </td>
+                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                                <span
+                                  className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                    conv.status === 'paid'
+                                      ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300'
+                                      : conv.status === 'rejected'
+                                      ? 'bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300'
+                                      : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                                  }`}
+                                >
+                                  {conv.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right whitespace-nowrap">
+                                {conv.status === 'approved' ? (
+                                  <button
+                                    onClick={() => handleMarkConversionPaid(conv.id)}
+                                    className="px-2.5 py-1 text-xs font-bold bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors cursor-pointer"
+                                  >
+                                    Mark Paid
+                                  </button>
+                                ) : conv.status === 'paid' ? (
+                                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">Paid Out</span>
+                                ) : (
+                                  <span className="text-xs text-red-500 font-semibold">Declined</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 text-xs uppercase font-bold border-b border-gray-200 dark:border-gray-800">
-                      <tr>
-                        <th className="py-3 px-4">Date</th>
-                        <th className="py-3 px-4">Affiliate Code</th>
-                        <th className="py-3 px-4">Store &amp; Deal</th>
-                        <th className="py-3 px-4 text-center">Tier</th>
-                        <th className="py-3 px-4 text-right">Basket ($)</th>
-                        <th className="py-3 px-4 text-right">Commission ($)</th>
-                        <th className="py-3 px-4 text-center">Status</th>
-                        <th className="py-3 px-4 text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                      {conversionsList.map((conv) => (
-                        <tr key={conv.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/40">
-                          <td className="py-3 px-4 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                            {new Date(conv.timestamp).toLocaleDateString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </td>
-                          <td className="py-3 px-4 font-mono text-xs font-bold text-amber-900 dark:text-yellow-400">
-                            {conv.affiliateCode}
-                          </td>
-                          <td className="py-3 px-4 max-w-xs">
-                            <span className="font-bold text-gray-900 dark:text-white block">{conv.merchantName}</span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate block">{conv.dealTitle}</span>
-                            {conv.couponCode && (
-                              <span className="inline-block mt-0.5 font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200/50">
-                                Code: {conv.couponCode}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
-                            {conv.isFirstUse ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-yellow-400 border border-amber-300/50">
-                                <Award className="w-3 h-3" /> 20% Initial
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/50">
-                                <Repeat className="w-3 h-3" /> 10% Recurring
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono text-xs text-gray-600 dark:text-gray-300">
-                            ${(conv.orderEstimatedValue || 0).toFixed(2)}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                            +${conv.commissionAmount.toFixed(2)}
-                          </td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
-                            <span
-                              className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                                conv.status === 'paid'
-                                  ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300'
-                                  : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
-                              }`}
-                            >
-                              {conv.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right whitespace-nowrap">
-                            {conv.status !== 'paid' ? (
-                              <button
-                                onClick={() => handleMarkConversionPaid(conv.id)}
-                                className="px-2.5 py-1 text-xs font-bold bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors cursor-pointer"
-                              >
-                                Mark Paid
-                              </button>
-                            ) : (
-                              <span className="text-xs text-gray-400">Paid out</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+              );
+            })()}
           </div>
         )}
 

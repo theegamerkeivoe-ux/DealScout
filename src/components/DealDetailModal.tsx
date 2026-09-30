@@ -396,12 +396,12 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
                 <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300 animate-in fade-in">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>
-                    <strong>{affiliateNotice.isFirst ? '20% First-Time' : '10% Recurring'} Commission Activated!</strong> Promo code &quot;{deal.couponCode}&quot; successfully credited to partner {activeAffiliateCode}.
+                    <strong>{affiliateNotice.isFirst ? '20% First-Time' : '10% Recurring'} Commission Recorded!</strong> Promo code &quot;{deal.couponCode}&quot; recorded for partner {activeAffiliateCode} (sent for confirmation).
                   </span>
                 </div>
               ) : deal.couponCode ? (
                 <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                  Commission will activate for partner <strong className="font-mono text-amber-600 dark:text-amber-400">{activeAffiliateCode}</strong> once you copy or use the promo code above.
+                  Commission will record for partner <strong className="font-mono text-amber-600 dark:text-amber-400">{activeAffiliateCode}</strong> once you copy or use the promo code above.
                 </p>
               ) : (
                 <p className="text-[11px] text-gray-500 dark:text-gray-400">

@@ -843,13 +843,13 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                       <div>
                         <strong>
                           {simResult.isFirst
-                            ? 'First-Time Purchase Conversion Recorded!'
-                            : 'Recurring Purchase Conversion Recorded!'}
+                            ? 'First-Time Purchase Conversion Submitted!'
+                            : 'Recurring Purchase Conversion Submitted!'}
                         </strong>
                         <p className="text-[11px] opacity-90 mt-0.5">
                           {simResult.isFirst
-                            ? `Earned 20% commission ($${simResult.amount.toFixed(2)})! Next purchase from this user will earn 10% recurring.`
-                            : `Earned 10% recurring commission ($${simResult.amount.toFixed(2)})!`}
+                            ? `Estimated 20% commission ($${simResult.amount.toFixed(2)}) submitted for admin confirmation before appearing in your verified ledger.`
+                            : `Estimated 10% recurring commission ($${simResult.amount.toFixed(2)}) submitted for admin confirmation before appearing in your verified ledger.`}
                         </p>
                       </div>
                     </div>
@@ -863,10 +863,10 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
               <div className="p-5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
                 <div>
                   <h3 className="font-display text-base font-bold text-gray-900 dark:text-white">
-                    Recent Promo Code Conversions &amp; Commissions
+                    Confirmed Promo Code Conversions &amp; Commissions
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Orders attributed to your referral code ({conversions.length} total)
+                    Orders attributed to your referral code that have been verified and approved ({conversions.length} total)
                   </p>
                 </div>
                 <button
@@ -882,10 +882,10 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                 <div className="text-center py-12 px-4 space-y-2">
                   <Gift className="w-8 h-8 text-gray-400 mx-auto" />
                   <p className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                    No promo code conversions recorded yet
+                    No confirmed conversions yet
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
-                    Share your promo code <strong className="font-mono text-amber-500">{affiliate?.affiliateCode}</strong> with your audience. When they activate a deal, your 20% first / 10% recurring commission will appear here automatically!
+                    Share your referral link with your audience. When visitors click your link and use a promo code, conversions appear here once confirmed by the store administrator.
                   </p>
                 </div>
               ) : (

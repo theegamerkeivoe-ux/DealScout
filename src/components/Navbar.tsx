@@ -96,22 +96,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            <button
-              id="nav-affiliates-btn"
-              onClick={() => handleNavClick('affiliates')}
-              className={`transition-colors cursor-pointer relative py-1 flex items-center gap-1.5 ${
-                currentView === 'affiliates'
-                  ? 'text-amber-500 font-bold'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-amber-500 dark:hover:text-amber-400'
-              }`}
-            >
-              <Gift className="w-3.5 h-3.5 text-amber-500" />
-              <span>Affiliate Program</span>
-              {currentView === 'affiliates' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400 rounded-full" />
-              )}
-            </button>
-
             {onOpenSupport && (
               <button
                 id="nav-support-btn"
@@ -213,13 +197,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="text-left px-3 py-2.5 rounded-lg text-base font-semibold text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
             >
               All Deals
-            </button>
-            <button
-              onClick={() => handleNavClick('affiliates')}
-              className="text-left px-3 py-2.5 rounded-lg text-base font-semibold text-amber-500 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer flex items-center gap-2"
-            >
-              <Gift className="w-4 h-4 text-amber-500" />
-              <span>Affiliate Program</span>
             </button>
             {onOpenSupport && (
               <button
