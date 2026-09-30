@@ -232,13 +232,16 @@ export async function recordAffiliateClick(
 }
 
 /**
- * Record a promo code usage conversion and calculate 20% first / 10% recurring commission
+ * Record a promo code usage conversion and calculate 20% first / 10% recurring commission.
+ * STRICT RULE: The affiliate only activates when a user has clicked to the site with a referral
+ * AND successfully uses/copies an active promo code available on the site.
  */
 export async function recordAffiliateConversion(params: {
   affiliateCode: string;
   dealId: string;
   dealTitle: string;
   merchantName: string;
+  couponCode: string;
   discount?: string;
   customOrderValue?: number;
 }): Promise<{
@@ -250,6 +253,19 @@ export async function recordAffiliateConversion(params: {
   message: string;
 }> {
   const cleanCode = params.affiliateCode.trim().toUpperCase();
+  const promoCode = (params.couponCode || '').trim();
+
+  // Guard: Must have an active promo code available on the site
+  if (!promoCode) {
+    return {
+      success: false,
+      isFirstUse: false,
+      commissionRate: 0,
+      commissionAmount: 0,
+      message: 'No promo code available. Affiliate commissions only activate upon using a valid deal promo code.',
+    };
+  }
+
   const affiliate = await getAffiliateByCode(cleanCode);
 
   if (!affiliate) {
@@ -263,6 +279,19 @@ export async function recordAffiliateConversion(params: {
   }
 
   const clientId = getClientIdentifier();
+
+  // Guard against duplicate immediate trigger within the same minute for this deal
+  const recentDedupeKey = `dealscout_last_conv_${params.dealId}_${cleanCode}`;
+  const lastTime = sessionStorage.getItem(recentDedupeKey);
+  if (lastTime && Date.now() - parseInt(lastTime, 10) < 60000) {
+    return {
+      success: true,
+      isFirstUse: false,
+      commissionRate: 0.10,
+      commissionAmount: 0,
+      message: `Promo code ${promoCode} already activated for this deal session.`,
+    };
+  }
 
   // Check if client has used this affiliate before to determine First (20%) vs Recurring (10%)
   let isFirstUse = true;
@@ -323,6 +352,7 @@ export async function recordAffiliateConversion(params: {
     dealId: params.dealId,
     dealTitle: params.dealTitle,
     merchantName: params.merchantName,
+    couponCode: promoCode,
     clientIdentifier: clientId,
     isFirstUse,
     commissionRate,
@@ -345,6 +375,8 @@ export async function recordAffiliateConversion(params: {
       updatedAt: now,
     });
 
+    sessionStorage.setItem(recentDedupeKey, Date.now().toString());
+
     return {
       success: true,
       conversion,
@@ -352,8 +384,8 @@ export async function recordAffiliateConversion(params: {
       commissionRate,
       commissionAmount,
       message: isFirstUse
-        ? `Success! 20% first-time commission ($${commissionAmount.toFixed(2)}) earned for affiliate ${cleanCode}.`
-        : `Success! 10% recurring commission ($${commissionAmount.toFixed(2)}) earned for affiliate ${cleanCode}.`,
+        ? `Success! 20% first-time commission ($${commissionAmount.toFixed(2)}) earned for affiliate ${cleanCode} using code "${promoCode}".`
+        : `Success! 10% recurring commission ($${commissionAmount.toFixed(2)}) earned for affiliate ${cleanCode} using code "${promoCode}".`,
     };
   } catch (err: any) {
     console.error('Error saving affiliate conversion:', err);

@@ -20,6 +20,11 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onSelectDeal }) => {
   const expired = isDealExpired(deal);
 
   const triggerAffiliateConversion = () => {
+    // STRICT: Only activate when:
+    // 1. Visitor clicked to the site via an affiliate link (stored affiliate code exists)
+    // 2. A valid promo code is available on the site for this deal
+    // 3. Deal is active (not expired)
+    if (!deal.couponCode || !deal.couponCode.trim() || expired) return;
     const affCode = getStoredAffiliateCode();
     if (affCode) {
       recordAffiliateConversion({
@@ -27,6 +32,7 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onSelectDeal }) => {
         dealId: deal.id,
         dealTitle: deal.title,
         merchantName: deal.merchantName,
+        couponCode: deal.couponCode.trim(),
         discount: deal.discount,
       }).catch(() => {});
     }
@@ -34,7 +40,7 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onSelectDeal }) => {
 
   const handleCopyCode = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!deal.couponCode) return;
+    if (!deal.couponCode || expired) return;
     triggerAffiliateConversion();
     navigator.clipboard.writeText(deal.couponCode);
     setCopied(true);
@@ -46,10 +52,9 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onSelectDeal }) => {
     if (isRedirecting) return;
     setIsRedirecting(true);
 
-    triggerAffiliateConversion();
-
-    // If there's a coupon code, copy it automatically for a smooth experience
-    if (deal.couponCode) {
+    // Only activate affiliate commission if a promo code is available on the site and used
+    if (deal.couponCode && !expired) {
+      triggerAffiliateConversion();
       try {
         await navigator.clipboard.writeText(deal.couponCode);
         setCopied(true);

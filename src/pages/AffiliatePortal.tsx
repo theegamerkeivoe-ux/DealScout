@@ -235,12 +235,15 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
     setSimulating(true);
     setSimResult(null);
 
-    const demoDeal = deals.length > 0 ? deals[0] : {
+    const demoDeal = deals.find((d) => d.couponCode && d.couponCode.trim()) || deals[0] || {
       id: 'demo-deal-1',
       title: '70% Off Premium Plan + 3 Extra Months',
       merchantName: 'NordVPN',
+      couponCode: 'SAVE70',
       discount: '70% OFF',
     };
+
+    const codeToUse = demoDeal.couponCode || 'SAVE70';
 
     try {
       const res = await recordAffiliateConversion({
@@ -248,6 +251,7 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
         dealId: demoDeal.id,
         dealTitle: demoDeal.title,
         merchantName: demoDeal.merchantName,
+        couponCode: codeToUse,
         discount: demoDeal.discount,
         customOrderValue: calcAvgOrder,
       });
@@ -915,6 +919,11 @@ export const AffiliatePortal: React.FC<AffiliatePortalProps> = ({
                             <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs block">
                               {conv.dealTitle}
                             </span>
+                            {conv.couponCode && (
+                              <span className="inline-block mt-0.5 font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200/50">
+                                Code: {conv.couponCode}
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-center whitespace-nowrap">
                             {conv.isFirstUse ? (

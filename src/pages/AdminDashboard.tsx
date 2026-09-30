@@ -1745,6 +1745,11 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
                           <td className="py-3 px-4 max-w-xs">
                             <span className="font-bold text-gray-900 dark:text-white block">{conv.merchantName}</span>
                             <span className="text-xs text-gray-500 dark:text-gray-400 truncate block">{conv.dealTitle}</span>
+                            {conv.couponCode && (
+                              <span className="inline-block mt-0.5 font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200/50">
+                                Code: {conv.couponCode}
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-center whitespace-nowrap">
                             {conv.isFirstUse ? (

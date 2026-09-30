@@ -75,6 +75,7 @@ export interface AffiliateConversion {
   dealId: string;
   dealTitle: string;
   merchantName: string;
+  couponCode?: string;
   clientIdentifier: string;
   isFirstUse: boolean;
   commissionRate: number; // 0.20 for first, 0.10 for recurring
