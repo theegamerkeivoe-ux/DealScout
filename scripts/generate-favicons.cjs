@@ -2,61 +2,33 @@ const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
 
-// SVG Definition: A yellow rounded-square with a crisp white coupon/ticket symbol in the center.
-// Matches DealScout branding: amber-400 (#FBBF24) rounded square with white ticket/coupon.
+// SVG Definition: Matches dee.JPG uploaded by user
+// A bright yellow squircle with a horizontal tag outline pointing to the left and a circular hole.
 const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <defs>
-    <linearGradient id="dealscoutYellow" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FCD34D"/>
-      <stop offset="50%" stop-color="#FBBF24"/>
-      <stop offset="100%" stop-color="#F59E0B"/>
-    </linearGradient>
-    <filter id="subtleShadow" x="-10%" y="-10%" width="120%" height="125%" filterUnits="userSpaceOnUse">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.12"/>
-    </filter>
-  </defs>
+  <!-- Bright Yellow Rounded Square (Squircle) matching dee.JPG -->
+  <rect width="512" height="512" rx="140" fill="#FFB800"/>
 
-  <!-- Yellow Rounded Square Base (Apple / Chrome style rounded corners) -->
-  <rect width="512" height="512" rx="116" fill="url(#dealscoutYellow)"/>
-
-  <!-- Centered White Coupon / Ticket Symbol -->
-  <g transform="translate(256, 256) rotate(-18) translate(-256, -256)" filter="url(#subtleShadow)">
-    <!-- Classic Coupon Ticket with Side Semicircle Notches -->
+  <!-- Centered Tag Icon matching dee.JPG: pointing to the left, rounded corners, bold black outline, solid hole -->
+  <g transform="translate(4, 0)">
     <path
-      d="M 120 186
-         C 120 162, 138 144, 162 144
-         L 350 144
-         C 374 144, 392 162, 392 186
-         L 392 222
-         A 34 34 0 0 0 392 290
-         L 392 326
-         C 392 350, 374 368, 350 368
-         L 162 368
-         C 138 368, 120 350, 120 326
-         L 120 290
-         A 34 34 0 0 0 120 222
+      d="M 146 256
+         L 228 174
+         C 235 167, 245 164, 256 164
+         L 362 164
+         C 380 164, 396 180, 396 198
+         L 396 314
+         C 396 332, 380 348, 362 348
+         L 256 348
+         C 245 348, 235 345, 228 338
+         L 146 256
          Z"
-      fill="#FFFFFF"
-    />
-
-    <!-- Vertical dashed perforated coupon line -->
-    <line
-      x1="220" y1="164"
-      x2="220" y2="348"
-      stroke="#FBBF24"
-      stroke-width="12"
+      fill="none"
+      stroke="#0A0A0A"
+      stroke-width="30"
       stroke-linecap="round"
-      stroke-dasharray="14 14"
+      stroke-linejoin="round"
     />
-
-    <!-- Left stub ticket punch-hole circle -->
-    <circle cx="170" cy="256" r="20" fill="#FBBF24"/>
-
-    <!-- Right body coupon discount star / percentage emblem -->
-    <!-- Starburst / % icon on main ticket body -->
-    <circle cx="304" cy="222" r="16" fill="#FBBF24"/>
-    <circle cx="336" cy="290" r="16" fill="#FBBF24"/>
-    <line x1="344" y1="214" x2="296" y2="298" stroke="#FBBF24" stroke-width="14" stroke-linecap="round"/>
+    <circle cx="214" cy="256" r="17" fill="#0A0A0A"/>
   </g>
 </svg>`;
 

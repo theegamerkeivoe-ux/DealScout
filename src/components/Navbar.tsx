@@ -1,7 +1,22 @@
 import React, { useState } from 'react';
-import { Tag, Search, Menu, X, ShieldCheck, Sun, Moon, MessageSquare, Gift, Award } from 'lucide-react';
+import {
+  Tag,
+  Search,
+  Menu,
+  X,
+  ShieldCheck,
+  Sun,
+  Moon,
+  MessageSquare,
+  Gift,
+  Award,
+  Crown,
+  Sparkles,
+  Lock,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { DealScoutLogo } from './DealScoutLogo';
 
 interface NavbarProps {
   searchQuery: string;
@@ -9,6 +24,9 @@ interface NavbarProps {
   currentView: string;
   onNavigate: (view: string, dealId?: string) => void;
   onOpenSupport?: () => void;
+  onOpenMembership?: () => void;
+  onOpenConcierge?: () => void;
+  isVipMember?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -17,6 +35,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentView,
   onNavigate,
   onOpenSupport,
+  onOpenMembership,
+  onOpenConcierge,
+  isVipMember = false,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { currentUser, isOwner, logout } = useAuth();
@@ -31,15 +52,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-40 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-200/80 dark:border-gray-800/80 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
-          {/* Logo */}
+          {/* Logo matching dee.JPG */}
           <div
             id="nav-brand-logo"
             onClick={() => handleNavClick('home')}
             className="flex items-center gap-2.5 cursor-pointer select-none shrink-0 group"
           >
-            <div className="w-9 h-9 bg-amber-400 text-gray-950 rounded-xl flex items-center justify-center font-bold shadow-xs transition-transform group-hover:scale-105">
-              <Tag className="w-4 h-4 -rotate-45" />
-            </div>
+            <DealScoutLogo size={36} />
             <div className="flex flex-col">
               <span className="font-display text-xl font-black tracking-tight text-gray-900 dark:text-white leading-none">
                 Deal<span className="text-amber-500 dark:text-amber-400 font-bold">Scout</span>
@@ -96,6 +115,31 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
+            {/* VIP Membership Trigger Button */}
+            {isVipMember ? (
+              <button
+                type="button"
+                id="nav-vip-concierge-btn"
+                onClick={onOpenConcierge}
+                className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-all"
+                title="VIP Member Concierge: Ask us to find deals for you"
+              >
+                <Crown className="w-3.5 h-3.5 text-gray-950" />
+                <span>VIP Concierge</span>
+              </button>
+            ) : onOpenMembership ? (
+              <button
+                type="button"
+                id="nav-vip-club-btn"
+                onClick={onOpenMembership}
+                className="px-3 py-1.5 rounded-xl border border-amber-400/50 bg-amber-400/10 hover:bg-amber-400/20 text-amber-900 dark:text-yellow-400 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all"
+                title="Join VIP Membership ($20/mo or Save 10% Yearly)"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>VIP Club ($20/mo)</span>
+              </button>
+            ) : null}
+
             {onOpenSupport && (
               <button
                 id="nav-support-btn"
@@ -123,8 +167,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* Admin Panel Link - ONLY visible to verified owner */}
-            {isOwner && (
+            {/* Admin Access: Prominent when authenticated as owner, Discreet lock button when logged out */}
+            {isOwner ? (
               <>
                 <div className="w-px h-4 bg-gray-200 dark:bg-gray-800 mx-1" />
                 <button
@@ -137,6 +181,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span>Admin Panel</span>
                 </button>
               </>
+            ) : (
+              <button
+                id="nav-staff-login-btn"
+                onClick={() => handleNavClick('admin')}
+                className="p-2 rounded-xl text-gray-400 hover:text-amber-500 dark:text-gray-500 dark:hover:text-amber-400 transition-colors cursor-pointer"
+                title="Staff / Admin Access"
+                aria-label="Admin Access"
+              >
+                <Lock className="w-3.5 h-3.5" />
+              </button>
             )}
           </nav>
 
@@ -197,6 +251,32 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               All Deals
             </button>
+
+            {/* VIP Mobile Button */}
+            {isVipMember ? (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenConcierge?.();
+                }}
+                className="text-left px-3 py-2.5 rounded-lg text-base font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer flex items-center gap-2"
+              >
+                <Crown className="w-4 h-4 text-amber-500" />
+                <span>VIP Concierge · Request Deals</span>
+              </button>
+            ) : onOpenMembership ? (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenMembership();
+                }}
+                className="text-left px-3 py-2.5 rounded-lg text-base font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer flex items-center gap-2"
+              >
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span>Join VIP Club ($20/mo)</span>
+              </button>
+            ) : null}
+
             {onOpenSupport && (
               <button
                 onClick={() => {
@@ -211,8 +291,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {isOwner && (
-            <div className="pt-3 border-t border-gray-200 dark:border-gray-800 space-y-2">
+          <div className="pt-3 border-t border-gray-200 dark:border-gray-800 space-y-2">
+            {isOwner ? (
               <button
                 onClick={() => handleNavClick('admin')}
                 className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold text-xs uppercase tracking-wider cursor-pointer shadow-xs"
@@ -220,8 +300,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <ShieldCheck className="w-4 h-4 text-gray-950" />
                 <span>Admin Dashboard</span>
               </button>
-            </div>
-          )}
+            ) : (
+              <button
+                onClick={() => handleNavClick('admin')}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 font-bold text-xs uppercase tracking-wider cursor-pointer"
+              >
+                <Lock className="w-3.5 h-3.5 text-amber-500" />
+                <span>Staff &amp; Admin Sign In</span>
+              </button>
+            )}
+          </div>
 
           {currentUser && (
             <div className="pt-2">

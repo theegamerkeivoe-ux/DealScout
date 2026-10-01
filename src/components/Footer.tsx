@@ -1,13 +1,15 @@
 import React from 'react';
-import { Tag, ShieldCheck, MessageSquare, ArrowRight, ExternalLink } from 'lucide-react';
+import { Tag, ShieldCheck, MessageSquare, ArrowRight, ExternalLink, Crown, Lock, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { DealScoutLogo } from './DealScoutLogo';
 
 interface FooterProps {
   onNavigate: (view: string) => void;
   onOpenLegal: (type: 'privacy' | 'terms' | 'support') => void;
+  onOpenMembership?: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal }) => {
+export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal, onOpenMembership }) => {
   const { isOwner } = useAuth();
   return (
     <footer className="bg-white dark:bg-gray-950 border-t border-gray-200/80 dark:border-gray-800/80 pt-12 pb-8 text-gray-500 dark:text-gray-400 transition-colors">
@@ -16,9 +18,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal }) => {
           {/* Brand Col */}
           <div className="space-y-3.5">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-400 flex items-center justify-center text-gray-950 font-bold shadow-xs">
-                <Tag className="w-4 h-4 -rotate-45" />
-              </div>
+              <DealScoutLogo size={34} />
               <span className="font-display font-black text-xl tracking-tight text-gray-900 dark:text-white">
                 Deal<span className="text-amber-500 dark:text-amber-400">Scout</span>
               </span>
@@ -109,23 +109,25 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal }) => {
             </div>
           </div>
 
-          {/* Partnership & Admin Col */}
+          {/* VIP & Partnership Col */}
           <div>
             <h4 className="font-display text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-3.5">
-              {isOwner ? 'Administration' : 'Partnership'}
+              VIP &amp; Partners
             </h4>
             <div className="space-y-3 text-xs">
-              {isOwner && (
+              {onOpenMembership && (
                 <button
                   type="button"
-                  onClick={() => {
-                    onNavigate('admin');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold transition-all cursor-pointer shadow-xs"
+                  onClick={onOpenMembership}
+                  className="w-full inline-flex items-center justify-between px-3.5 py-2 rounded-xl bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-900 dark:text-yellow-400 font-bold transition-all cursor-pointer"
                 >
-                  <ShieldCheck className="w-4 h-4 text-gray-950" />
-                  <span>Admin Dashboard</span>
+                  <div className="flex items-center gap-2">
+                    <Crown className="w-4 h-4 text-amber-500" />
+                    <span>VIP Membership</span>
+                  </div>
+                  <span className="text-[10px] uppercase font-black bg-amber-400 text-gray-950 px-1.5 py-0.5 rounded">
+                    $20/mo
+                  </span>
                 </button>
               )}
 
@@ -135,13 +137,40 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal }) => {
                   onNavigate('affiliates');
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-900 dark:text-yellow-400 font-bold transition-all cursor-pointer"
+                className="w-full inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-900 hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold transition-all cursor-pointer border border-gray-200 dark:border-gray-800"
               >
                 <span className="text-amber-500">🎁</span>
                 <span>Affiliate Program</span>
               </button>
+
+              {isOwner ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onNavigate('admin');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold transition-all cursor-pointer shadow-xs"
+                >
+                  <ShieldCheck className="w-4 h-4 text-gray-950" />
+                  <span>Admin Dashboard</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onNavigate('admin');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-900/60 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 font-semibold border border-dashed border-gray-300 dark:border-gray-800 transition-all cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Staff &amp; Admin Sign In</span>
+                </button>
+              )}
+
               <p className="text-gray-400 dark:text-gray-500 text-[11px] leading-relaxed">
-                Join our affiliate network and earn recurring commissions sharing top deals.
+                Join our affiliate network or request custom deals with our scout team.
               </p>
             </div>
           </div>
@@ -174,6 +203,19 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal }) => {
               className="hover:text-gray-900 dark:hover:text-white cursor-pointer transition-colors"
             >
               Community Support
+            </button>
+            <span aria-hidden="true">&bull;</span>
+            <button
+              type="button"
+              onClick={() => {
+                onNavigate('admin');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="hover:text-amber-500 dark:hover:text-amber-400 cursor-pointer transition-colors flex items-center gap-1"
+              title="Administrator Management Access"
+            >
+              <Lock className="w-3 h-3 text-amber-500" />
+              <span>Admin Access</span>
             </button>
           </div>
           <div className="flex items-center gap-2 text-xs">

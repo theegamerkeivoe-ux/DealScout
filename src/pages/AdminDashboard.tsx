@@ -31,9 +31,10 @@ import {
   Wallet,
   Check,
   Lock,
+  Crown,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Deal, SupportComment, Affiliate, AffiliateConversion } from '../types';
+import { Deal, SupportComment, Affiliate, AffiliateConversion, Membership, DealRequest } from '../types';
 import {
   getAllDeals,
   createDeal,
@@ -54,8 +55,14 @@ import {
   confirmConversion,
   rejectConversion,
 } from '../services/affiliateService';
+import {
+  getAllMemberships,
+  getAllDealRequests,
+  respondToDealRequest,
+} from '../services/membershipService';
 import { testFirestoreConnection } from '../firebase';
 import { LogoUploader } from '../components/LogoUploader';
+import { DealScoutLogo } from '../components/DealScoutLogo';
 
 export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNavigateHome }) => {
   const {
@@ -197,6 +204,70 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
     }
   };
 
+  // VIP Memberships & Custom Deal Concierge Requests
+  const [dealRequests, setDealRequests] = useState<DealRequest[]>([]);
+  const [membershipsList, setMembershipsList] = useState<Membership[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [selectedRequestForReply, setSelectedRequestForReply] = useState<DealRequest | null>(null);
+  const [replyResponseText, setReplyResponseText] = useState('');
+  const [replyCouponCode, setReplyCouponCode] = useState('');
+  const [replyDealUrl, setReplyDealUrl] = useState('');
+  const [replyStatus, setReplyStatus] = useState<DealRequest['status']>('deal_found');
+  const [replySubmitting, setReplySubmitting] = useState(false);
+
+  const fetchMembershipsAndRequests = async () => {
+    if (!isOwner) return;
+    setLoadingRequests(true);
+    try {
+      const [reqs, mems] = await Promise.all([
+        getAllDealRequests(),
+        getAllMemberships(),
+      ]);
+      setDealRequests(reqs);
+      setMembershipsList(mems);
+    } catch (err) {
+      console.error('Error fetching memberships and requests:', err);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  const handleOpenReplyModal = (req: DealRequest) => {
+    setSelectedRequestForReply(req);
+    setReplyResponseText(
+      req.adminResponse ||
+        `Hi ${req.userName || 'Member'}, our scout team found an exclusive verified discount for ${req.productOrStore}!`
+    );
+    setReplyCouponCode(req.foundCouponCode || '');
+    setReplyDealUrl(req.foundDealUrl || req.productUrl || '');
+    setReplyStatus(req.status === 'pending' ? 'deal_found' : req.status);
+  };
+
+  const handleSubmitReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRequestForReply) return;
+    setReplySubmitting(true);
+    try {
+      await respondToDealRequest(selectedRequestForReply.id, {
+        status: replyStatus,
+        adminResponse: replyResponseText,
+        foundCouponCode: replyCouponCode.trim() || undefined,
+        foundDealUrl: replyDealUrl.trim() || undefined,
+      });
+
+      setStatusMessage({
+        type: 'success',
+        text: `Response sent to ${selectedRequestForReply.userEmail} for "${selectedRequestForReply.productOrStore}"!`,
+      });
+      setSelectedRequestForReply(null);
+      await fetchMembershipsAndRequests();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err?.message || 'Failed to update request.' });
+    } finally {
+      setReplySubmitting(false);
+    }
+  };
+
   const handleMarkConversionPaid = async (conversionId: string) => {
     try {
       await updateConversionStatus(conversionId, 'paid');
@@ -272,6 +343,7 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
       fetchDeals();
       fetchComments();
       fetchAffiliatesAndConversions();
+      fetchMembershipsAndRequests();
     }
   }, [isOwner]);
 
@@ -884,6 +956,25 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
           >
             <Gift className="w-4 h-4 text-amber-500" />
             <span>Affiliates &amp; Commissions ({affiliatesList.length})</span>
+          </button>
+
+          <button
+            id="admin-tab-concierge"
+            onClick={() => {
+              setActiveTab('concierge');
+              fetchMembershipsAndRequests();
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'concierge'
+                ? 'bg-amber-400 text-gray-950 shadow-xs'
+                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800'
+            }`}
+          >
+            <Crown className="w-4 h-4 text-amber-500" />
+            <span>VIP Members &amp; Concierge ({dealRequests.length})</span>
+            {dealRequests.filter((r) => r.status === 'pending').length > 0 && (
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            )}
           </button>
 
           <button

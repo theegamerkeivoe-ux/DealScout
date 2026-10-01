@@ -13,6 +13,7 @@ export interface Deal {
   expirationDate?: string;
   featured: boolean;
   published: boolean;
+  vipExclusive?: boolean;
   clicks: number;
   createdAt: string;
   updatedAt: string;
@@ -20,6 +21,40 @@ export interface Deal {
 
 export type DealCategory = string;
 export const DEAL_CATEGORIES: string[] = [];
+
+export interface Membership {
+  id: string;
+  userId: string;
+  email: string;
+  displayName?: string;
+  plan: 'monthly' | 'yearly';
+  status: 'active' | 'cancelled' | 'expired';
+  price: number; // 20 or 216
+  billingCycle: 'monthly' | 'yearly';
+  startDate: string;
+  renewsDate: string;
+  instantAlerts: boolean;
+  categoriesOfInterest?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DealRequest {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userName?: string;
+  productOrStore: string;
+  targetBudget?: string;
+  productUrl?: string;
+  notes?: string;
+  status: 'pending' | 'researching' | 'deal_found' | 'completed' | 'closed';
+  adminResponse?: string;
+  foundCouponCode?: string;
+  foundDealUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface ClickLog {
   id?: string;
