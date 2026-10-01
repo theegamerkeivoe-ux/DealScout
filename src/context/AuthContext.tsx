@@ -21,6 +21,7 @@ export type AppUser = User | {
 };
 
 const AFFILIATE_SESSION_KEY = 'dealscout_affiliate_session';
+const ADMIN_VERIFIED_KEY = 'dealscout_admin_verified';
 
 interface AuthContextType {
   currentUser: AppUser | null;
@@ -33,7 +34,7 @@ interface AuthContextType {
   signInWithGoogleRedirect: () => Promise<void>;
   signInWithEmail: (email: string, password?: string) => Promise<AppUser>;
   signUpWithEmail: (email: string, password?: string, displayName?: string) => Promise<AppUser>;
-  signInAsOwner: (email?: string) => Promise<boolean>;
+  signInAsOwner: (passcode: string, email?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   authError: string | null;
   clearAuthError: () => void;
@@ -70,20 +71,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const checkIsOwner = async (user: AppUser | null): Promise<boolean> => {
     if (!user || !user.email) return false;
     const email = user.email.toLowerCase().trim();
-    if (email === DEFAULT_OWNER_EMAIL.toLowerCase().trim()) {
-      return true;
-    }
-    try {
-      const res = await fetch('/api/auth/check-owner', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      return Boolean(data?.isOwner);
-    } catch {
+    if (email !== DEFAULT_OWNER_EMAIL.toLowerCase().trim()) {
       return false;
     }
+
+    // 1. Google-authenticated account proving ownership of the email
+    if ('providerData' in user && Array.isArray((user as User).providerData)) {
+      const isGoogle = (user as User).providerData.some((p) => p.providerId === 'google.com');
+      if (isGoogle) return true;
+    }
+
+    // 2. Verified with admin security passcode in this session
+    if (typeof window !== 'undefined' && sessionStorage.getItem(ADMIN_VERIFIED_KEY) === 'true') {
+      return true;
+    }
+
+    return false;
   };
 
   // Check for any redirect authentication result on boot
@@ -205,25 +208,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (errorCode === 'auth/unauthorized-domain') {
         // Firebase domain whitelist error on cloud preview domains
         console.warn('Firebase auth/unauthorized-domain encountered.');
-        if (forAdmin) {
-          // Seamless fallback for store owner
-          const ownerUser: AppUser = {
-            uid: 'owner_' + DEFAULT_OWNER_EMAIL.replace(/[^a-z0-9]/g, '_'),
-            email: DEFAULT_OWNER_EMAIL,
-            displayName: 'Admin (Keivoe)',
-          };
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(AFFILIATE_SESSION_KEY, JSON.stringify(ownerUser));
-          }
-          setCurrentUser(ownerUser);
-          setIsOwner(true);
-          setAuthError(null);
-          return ownerUser as any;
-        } else {
-          setAuthError(
-            'This preview domain is not in Firebase authorized OAuth domains. Please sign in directly using your email address below.'
-          );
-        }
+        setAuthError(
+          'Google OAuth popup is restricted on this preview domain by Firebase. Please enter your Admin Passcode below to sign in.'
+        );
       } else if (
         errorCode === 'auth/cancelled-popup-request' ||
         errorMsg.includes('Pending promise was never set')
@@ -437,43 +424,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signInAsOwner = async (inputEmail?: string): Promise<boolean> => {
+  const signInAsOwner = async (passcode: string, inputEmail?: string): Promise<boolean> => {
     setIsSigningIn(true);
     setAuthError(null);
     try {
       const emailToVerify = (inputEmail || DEFAULT_OWNER_EMAIL).trim().toLowerCase();
-      if (emailToVerify === DEFAULT_OWNER_EMAIL.toLowerCase()) {
-        const ownerUser: AppUser = {
-          uid: 'owner_' + emailToVerify.replace(/[^a-z0-9]/g, '_'),
-          email: emailToVerify,
-          displayName: 'Admin (Keivoe)',
-        };
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(AFFILIATE_SESSION_KEY, JSON.stringify(ownerUser));
-        }
-        setCurrentUser(ownerUser);
-        setIsOwner(true);
-        setAuthError(null);
-        return true;
+      if (emailToVerify !== DEFAULT_OWNER_EMAIL.toLowerCase()) {
+        const msg = `Access denied: "${emailToVerify}" is not authorized as the store administrator.`;
+        setAuthError(msg);
+        return false;
       }
 
-      const isApiOwner = await checkIsOwner({ uid: 'check', email: emailToVerify, displayName: null });
-      if (isApiOwner) {
-        const ownerUser: AppUser = {
-          uid: 'owner_' + emailToVerify.replace(/[^a-z0-9]/g, '_'),
-          email: emailToVerify,
-          displayName: 'Admin (' + emailToVerify.split('@')[0] + ')',
-        };
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(AFFILIATE_SESSION_KEY, JSON.stringify(ownerUser));
-        }
-        setCurrentUser(ownerUser);
-        setIsOwner(true);
-        setAuthError(null);
-        return true;
+      if (!passcode || !passcode.trim()) {
+        const msg = 'Please enter your Admin Passcode.';
+        setAuthError(msg);
+        return false;
       }
 
-      setAuthError(`Access denied: "${emailToVerify}" is not authorized as the store administrator.`);
+      const res = await fetch('/api/auth/verify-admin-passcode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailToVerify, passcode: passcode.trim() }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        const msg = data.message || 'Incorrect admin security passcode. Access denied.';
+        setAuthError(msg);
+        return false;
+      }
+
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(ADMIN_VERIFIED_KEY, 'true');
+      }
+
+      const ownerUser: AppUser = {
+        uid: 'owner_' + emailToVerify.replace(/[^a-z0-9]/g, '_'),
+        email: emailToVerify,
+        displayName: 'Administrator (Keivoe)',
+      };
+
+      setCurrentUser(ownerUser);
+      setIsOwner(true);
+      setAuthError(null);
+      return true;
+    } catch (err: any) {
+      const msg = err?.message || 'Verification connection failed. Please try again.';
+      setAuthError(msg);
       return false;
     } finally {
       setIsSigningIn(false);
@@ -483,6 +480,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(ADMIN_VERIFIED_KEY);
         localStorage.removeItem(AFFILIATE_SESSION_KEY);
       }
       await signOut(auth).catch(() => {});

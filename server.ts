@@ -11,8 +11,12 @@ const PORT = 3000;
 
 app.use(express.json());
 
+// Serve static assets from public (favicons, icons, manifest)
+app.use(express.static(path.resolve(process.cwd(), 'public')));
+
 // Owner email from environment variable or fallback to authorized account
 const OWNER_EMAIL = (process.env.OWNER_EMAIL || 'theegamerkeivoe@gmail.com').trim().toLowerCase();
+const ADMIN_PASSCODE = (process.env.ADMIN_PASSCODE || 'KeivoeAdmin2026!').trim();
 
 // API routes
 app.get('/api/health', (req, res) => {
@@ -31,6 +35,27 @@ app.post('/api/auth/check-owner', (req, res) => {
   const normalized = (email || '').trim().toLowerCase();
   const isOwner = Boolean(normalized && normalized === OWNER_EMAIL);
   res.json({ isOwner });
+});
+
+app.post('/api/auth/verify-admin-passcode', (req, res) => {
+  const { email, passcode } = req.body || {};
+  const normalized = (email || '').trim().toLowerCase();
+  const inputPasscode = (passcode || '').trim();
+
+  if (!normalized || normalized !== OWNER_EMAIL) {
+    return res.status(403).json({ success: false, message: 'Access denied: Email is not authorized as the store administrator.' });
+  }
+
+  if (!inputPasscode || inputPasscode !== ADMIN_PASSCODE) {
+    return res.status(401).json({ success: false, message: 'Incorrect admin security passcode.' });
+  }
+
+  return res.json({
+    success: true,
+    isOwner: true,
+    email: OWNER_EMAIL,
+    displayName: 'Administrator (Keivoe)',
+  });
 });
 
 // Direct redirect endpoint for affiliate links (clean URL for YouTube descriptions: e.g. /go/:id)

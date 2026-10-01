@@ -30,6 +30,7 @@ import {
   DollarSign,
   Wallet,
   Check,
+  Lock,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Deal, SupportComment, Affiliate, AffiliateConversion } from '../types';
@@ -120,6 +121,33 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
   const [formData, setFormData] = useState(emptyFormState);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Admin Passcode Security Login State
+  const [adminPasscode, setAdminPasscode] = useState('');
+  const [adminEmailInput, setAdminEmailInput] = useState('theegamerkeivoe@gmail.com');
+  const [showPasscode, setShowPasscode] = useState(false);
+  const [passcodeError, setPasscodeError] = useState<string | null>(null);
+  const [isVerifyingPasscode, setIsVerifyingPasscode] = useState(false);
+
+  const handlePasscodeLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminPasscode.trim()) {
+      setPasscodeError('Please enter your administrator passcode.');
+      return;
+    }
+    setPasscodeError(null);
+    setIsVerifyingPasscode(true);
+    try {
+      const ok = await signInAsOwner(adminPasscode.trim(), adminEmailInput.trim());
+      if (!ok) {
+        setPasscodeError('Access denied: Incorrect administrator passcode.');
+      }
+    } catch (err: any) {
+      setPasscodeError(err?.message || 'Verification connection failed.');
+    } finally {
+      setIsVerifyingPasscode(false);
+    }
+  };
 
   // Load all deals for admin
   const fetchDeals = async () => {
@@ -532,22 +560,73 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
               </button>
             )}
 
-            {/* Direct Owner Login Button */}
-            <div className="pt-3 border-t border-gray-200 dark:border-gray-800 space-y-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block text-center">
-                Or Direct Owner Email Access
-              </span>
+            {/* Secure Admin Passcode Authentication */}
+            <form onSubmit={handlePasscodeLogin} className="pt-4 border-t border-gray-200 dark:border-gray-800 space-y-3 text-left">
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                <Lock className="w-3.5 h-3.5 text-amber-500" />
+                <span>Admin Passcode Verification</span>
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                Enter your authorized owner email and administrator security passcode to unlock management controls.
+              </p>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">
+                  Owner Email
+                </label>
+                <input
+                  type="email"
+                  value={adminEmailInput}
+                  onChange={(e) => setAdminEmailInput(e.target.value)}
+                  placeholder="theegamerkeivoe@gmail.com"
+                  required
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">
+                  Admin Passcode
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPasscode ? 'text' : 'password'}
+                    value={adminPasscode}
+                    onChange={(e) => setAdminPasscode(e.target.value)}
+                    placeholder="Enter admin passcode..."
+                    required
+                    className="w-full text-xs px-3.5 py-2.5 pr-10 rounded-xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasscode(!showPasscode)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs cursor-pointer"
+                  >
+                    {showPasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {passcodeError && (
+                <div className="p-2.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-xl text-xs text-red-700 dark:text-red-300 font-medium">
+                  {passcodeError}
+                </div>
+              )}
+
               <button
-                type="button"
-                id="admin-direct-owner-btn"
-                onClick={() => signInAsOwner('theegamerkeivoe@gmail.com')}
-                disabled={isSigningIn}
-                className="w-full bg-amber-400 hover:bg-amber-500 active:bg-amber-600 text-gray-950 font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                type="submit"
+                id="admin-verify-passcode-btn"
+                disabled={isSigningIn || isVerifyingPasscode}
+                className="w-full bg-amber-400 hover:bg-amber-500 active:bg-amber-600 text-gray-950 font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-60"
               >
-                <ShieldCheck className="w-4 h-4 text-gray-950" />
-                <span>Sign In as Owner (theegamerkeivoe@gmail.com)</span>
+                {isVerifyingPasscode ? (
+                  <div className="w-4 h-4 border-2 border-gray-950 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <ShieldCheck className="w-4 h-4 text-gray-950" />
+                )}
+                <span>Verify &amp; Unlock Admin Panel</span>
               </button>
-            </div>
+            </form>
           </div>
 
           <button

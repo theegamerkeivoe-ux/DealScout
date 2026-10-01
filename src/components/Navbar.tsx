@@ -123,22 +123,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            <div className="w-px h-4 bg-gray-200 dark:bg-gray-800 mx-1" />
-
-            {/* Admin / Owner Link */}
-            <button
-              id="nav-admin-btn"
-              onClick={() => handleNavClick('admin')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                isOwner
-                  ? 'bg-amber-400 hover:bg-amber-500 text-gray-950 shadow-xs'
-                  : 'bg-gray-900 dark:bg-gray-800 text-white hover:bg-gray-800 dark:hover:bg-gray-700 border border-gray-800 dark:border-gray-700'
-              }`}
-              title={isOwner ? 'Owner Admin Dashboard' : 'Admin Login'}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>{isOwner ? 'Admin Panel' : 'Admin Login'}</span>
-            </button>
+            {/* Admin Panel Link - ONLY visible to verified owner */}
+            {isOwner && (
+              <>
+                <div className="w-px h-4 bg-gray-200 dark:bg-gray-800 mx-1" />
+                <button
+                  id="nav-admin-btn"
+                  onClick={() => handleNavClick('admin')}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer bg-amber-400 hover:bg-amber-500 text-gray-950 shadow-xs"
+                  title="Owner Admin Dashboard"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Admin Panel</span>
+                </button>
+              </>
+            )}
           </nav>
 
           {/* Mobile controls */}
@@ -212,23 +211,28 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          <div className="pt-3 border-t border-gray-200 dark:border-gray-800 space-y-2">
-            <button
-              onClick={() => handleNavClick('admin')}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold text-xs uppercase tracking-wider hover:bg-gray-800 dark:hover:bg-gray-100 cursor-pointer"
-            >
-              <ShieldCheck className="w-4 h-4 text-[#FACC15]" />
-              <span>{isOwner ? 'Go to Admin Dashboard' : 'Owner / Admin Login'}</span>
-            </button>
-            {currentUser && (
+          {isOwner && (
+            <div className="pt-3 border-t border-gray-200 dark:border-gray-800 space-y-2">
+              <button
+                onClick={() => handleNavClick('admin')}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold text-xs uppercase tracking-wider cursor-pointer shadow-xs"
+              >
+                <ShieldCheck className="w-4 h-4 text-gray-950" />
+                <span>Admin Dashboard</span>
+              </button>
+            </div>
+          )}
+
+          {currentUser && (
+            <div className="pt-2">
               <button
                 onClick={() => logout()}
                 className="w-full py-2 text-xs text-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-pointer"
               >
                 Sign out
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </header>
