@@ -84,6 +84,12 @@ export const HomePage: React.FC<HomePageProps> = ({
       if (selectedFilter === 'featured') {
         return deal.featured;
       }
+      if (selectedFilter === 'vip') {
+        return Boolean(deal.vipExclusive);
+      }
+      if (selectedFilter === 'free') {
+        return !deal.vipExclusive;
+      }
       if (selectedFilter === 'codes') {
         return Boolean(deal.couponCode && deal.couponCode.trim());
       }
@@ -186,6 +192,31 @@ export const HomePage: React.FC<HomePageProps> = ({
             >
               <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400/30" />
               <span>Featured</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedFilter('vip')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                selectedFilter === 'vip'
+                  ? 'bg-amber-400 text-gray-950 shadow-xs'
+                  : 'bg-white/10 hover:bg-white/20 text-gray-300'
+              }`}
+            >
+              <Crown className="w-3.5 h-3.5 text-amber-400" />
+              <span>VIP Drops</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedFilter('free')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                selectedFilter === 'free'
+                  ? 'bg-emerald-500 text-white shadow-xs'
+                  : 'bg-white/10 hover:bg-white/20 text-gray-300'
+              }`}
+            >
+              <span>🌐 Free Deals</span>
             </button>
 
             <button

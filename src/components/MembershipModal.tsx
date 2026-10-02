@@ -68,12 +68,20 @@ export const MembershipModal: React.FC<MembershipModalProps> = ({
   const isMemberActive = currentMembership && currentMembership.status === 'active';
   const amountToPay = billingCycle === 'yearly' ? 216 : 20;
 
-  // Retrieve admin-configured Stripe/PayPal payment link if set
+  // Retrieve admin-configured PayPal / Stripe credentials if set
+  const paypalEmail = typeof window !== 'undefined' ? localStorage.getItem('dealscout_paypal_email') : null;
+  const paypalUsername = typeof window !== 'undefined' ? localStorage.getItem('dealscout_paypal_username') : null;
   const stripePaymentLink = typeof window !== 'undefined'
     ? (billingCycle === 'yearly'
         ? localStorage.getItem('dealscout_stripe_yearly_url')
         : localStorage.getItem('dealscout_stripe_monthly_url'))
     : null;
+
+  // Build direct PayPal payment link to owner's account
+  const activePaypalEmail = paypalEmail || 'theegamerkeivoe@gmail.com';
+  const paypalDirectUrl = paypalUsername
+    ? `https://paypal.me/${paypalUsername}/${amountToPay}`
+    : `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(activePaypalEmail)}&item_name=DealScout%20VIP%20Membership&amount=${amountToPay}&currency_code=USD`;
 
   // Format Card Number input with spaces: 0000 0000 0000 0000
   const handleCardNumberChange = (val: string) => {
@@ -461,6 +469,25 @@ export const MembershipModal: React.FC<MembershipModalProps> = ({
                   >
                     <span className="text-sm"></span>
                     <span>Fast Pay with Apple Pay</span>
+                  </button>
+
+                  {/* PayPal Fast Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (paypalDirectUrl) {
+                        window.open(paypalDirectUrl, '_blank', 'noopener,noreferrer');
+                      }
+                      handleExecutePayment('PayPal');
+                    }}
+                    disabled={isProcessing}
+                    className="py-3 px-4 rounded-2xl bg-[#0070BA] hover:bg-[#005ea6] text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-all active:scale-98 disabled:opacity-50 col-span-1 sm:col-span-2"
+                  >
+                    <span className="font-black text-sm italic font-serif">P</span>
+                    <span>
+                      {paypalDirectUrl ? 'Pay with PayPal (Direct Payout)' : 'Fast Pay with PayPal'} (${amountToPay}.00)
+                    </span>
+                    {paypalDirectUrl && <ArrowRight className="w-3.5 h-3.5" />}
                   </button>
                 </div>
 

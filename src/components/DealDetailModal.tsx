@@ -16,6 +16,8 @@ import {
   Award,
   Repeat,
   CheckCircle2,
+  Crown,
+  Lock,
 } from 'lucide-react';
 import { Deal } from '../types';
 import { recordDealClick, isDealExpired } from '../services/dealService';
@@ -32,6 +34,8 @@ interface DealDetailModalProps {
   onClose: () => void;
   onOpenSupport?: (deal?: Deal) => void;
   isStandalonePage?: boolean;
+  isVip?: boolean;
+  onOpenMembership?: () => void;
 }
 
 export const DealDetailModal: React.FC<DealDetailModalProps> = ({
@@ -39,6 +43,8 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
   onClose,
   onOpenSupport,
   isStandalonePage = false,
+  isVip = false,
+  onOpenMembership,
 }) => {
   const [copied, setCopied] = useState(false);
   const [hasClickedDeal, setHasClickedDeal] = useState(false);
@@ -309,7 +315,39 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
           </div>
 
           {/* Coupon Code Big Box (If applicable) */}
-          {deal.couponCode ? (
+          {deal.vipExclusive && !isVip ? (
+            <div className="bg-amber-500/10 dark:bg-amber-950/30 border-2 border-amber-400/60 dark:border-amber-500/40 rounded-2xl p-5 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                <span className="flex items-center gap-1.5">
+                  <Crown className="w-4 h-4 text-amber-500" />
+                  VIP Members Only Drop
+                </span>
+                <span className="bg-amber-400 text-gray-950 text-[10px] font-black px-2 py-0.5 rounded">
+                  VIP ONLY
+                </span>
+              </div>
+              <div className="p-4 rounded-xl bg-white dark:bg-gray-900 border border-amber-200 dark:border-amber-900/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                <div>
+                  <span className="font-mono text-lg font-black text-gray-400 dark:text-gray-500 tracking-widest block select-none">
+                    •••• •••• ••••
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    This promo code is exclusively reserved for DealScout VIP members.
+                  </span>
+                </div>
+                {onOpenMembership && (
+                  <button
+                    type="button"
+                    onClick={onOpenMembership}
+                    className="w-full sm:w-auto px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition-all"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Unlock with VIP ($20/mo)</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : deal.couponCode ? (
             <div className="bg-amber-500/5 dark:bg-gray-950/80 border-2 border-dashed border-amber-400/60 dark:border-amber-500/40 rounded-2xl p-5 sm:p-6 space-y-3">
               <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
                 <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">

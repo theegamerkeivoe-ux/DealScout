@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ExternalLink, Copy, Check, Tag, ShieldCheck, Clock } from 'lucide-react';
+import { ExternalLink, Copy, Check, Tag, ShieldCheck, Clock, Crown, Lock } from 'lucide-react';
 import { Deal } from '../types';
 import { recordDealClick, isDealExpired } from '../services/dealService';
 import { ShareButton } from './ShareButton';
@@ -11,13 +11,21 @@ import {
 interface DealCardProps {
   deal: Deal;
   onSelectDeal: (deal: Deal) => void;
+  isVip?: boolean;
+  onOpenMembership?: () => void;
 }
 
-export const DealCard: React.FC<DealCardProps> = ({ deal, onSelectDeal }) => {
+export const DealCard: React.FC<DealCardProps> = ({
+  deal,
+  onSelectDeal,
+  isVip = false,
+  onOpenMembership,
+}) => {
   const [copied, setCopied] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [imgError, setImgError] = useState(false);
   const expired = isDealExpired(deal);
+  const isVipLocked = Boolean(deal.vipExclusive && !isVip);
 
   const triggerAffiliateConversion = () => {
     // STRICT: Only activate when:
@@ -118,15 +126,34 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onSelectDeal }) => {
           </div>
         </div>
 
-        {/* Right: Discount Callout */}
-        {deal.discount && (
-          <span
-            className="shrink-0 max-w-[50%] truncate font-mono text-xs font-extrabold px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 tracking-wide text-right"
-            title={deal.discount}
-          >
-            {deal.discount}
-          </span>
-        )}
+        {/* Right: Audience & Discount Badges */}
+        <div className="flex items-center gap-1.5 shrink-0 max-w-[60%] justify-end flex-wrap">
+          {deal.vipExclusive ? (
+            <span
+              className="inline-flex items-center gap-1 font-mono text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-400 text-gray-950 uppercase tracking-wider shadow-2xs"
+              title="VIP Members Only Exclusive Deal"
+            >
+              <Crown className="w-3 h-3 text-gray-950" />
+              <span>VIP Only</span>
+            </span>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300"
+              title="Free to all community members"
+            >
+              <span>🌐 Free</span>
+            </span>
+          )}
+
+          {deal.discount && (
+            <span
+              className="truncate font-mono text-xs font-extrabold px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 tracking-wide"
+              title={deal.discount}
+            >
+              {deal.discount}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Deal Title */}
@@ -141,42 +168,67 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onSelectDeal }) => {
 
       {/* Coupon Code Block */}
       {deal.couponCode ? (
-        <div className="bg-amber-500/5 dark:bg-gray-950/80 border border-dashed border-amber-400/50 dark:border-amber-500/30 rounded-xl p-3 mb-4 flex items-center justify-between">
-          <div className="min-w-0 flex-1 pr-2">
-            <span className="block text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500 tracking-wider">
-              Coupon Code
-            </span>
-            <span className="font-mono font-bold text-gray-900 dark:text-amber-300 tracking-wider text-sm select-all truncate block">
-              {deal.couponCode}
-            </span>
+        isVipLocked ? (
+          <div className="bg-amber-500/10 dark:bg-amber-950/30 border border-amber-300/80 dark:border-amber-600/40 rounded-xl p-3 mb-4 flex items-center justify-between">
+            <div className="min-w-0 flex-1 pr-2">
+              <span className="block text-[10px] uppercase font-bold text-amber-700 dark:text-amber-400 tracking-wider flex items-center gap-1">
+                <Crown className="w-3 h-3" />
+                <span>VIP Member Exclusive Code</span>
+              </span>
+              <span className="font-mono font-bold text-gray-400 dark:text-gray-500 tracking-widest text-xs select-none">
+                •••• •••• ••••
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOpenMembership) onOpenMembership();
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shrink-0 bg-amber-400 hover:bg-amber-500 text-gray-950 shadow-2xs"
+            >
+              <Lock className="w-3 h-3 text-gray-950" />
+              <span>Unlock</span>
+            </button>
           </div>
-          <button
-            type="button"
-            id={`copy-btn-${deal.id}`}
-            onClick={handleCopyCode}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
-              copied
-                ? 'bg-emerald-500 text-white shadow-xs'
-                : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-750'
-            }`}
-          >
-            {copied ? (
-              <>
-                <Check className="w-3.5 h-3.5" />
-                <span>Copied</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5 text-gray-400" />
-                <span>Copy</span>
-              </>
-            )}
-          </button>
-        </div>
+        ) : (
+          <div className="bg-amber-500/5 dark:bg-gray-950/80 border border-dashed border-amber-400/50 dark:border-amber-500/30 rounded-xl p-3 mb-4 flex items-center justify-between">
+            <div className="min-w-0 flex-1 pr-2">
+              <span className="block text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500 tracking-wider">
+                {deal.vipExclusive ? '👑 VIP Member Code' : 'Coupon Code'}
+              </span>
+              <span className="font-mono font-bold text-gray-900 dark:text-amber-300 tracking-wider text-sm select-all truncate block">
+                {deal.couponCode}
+              </span>
+            </div>
+            <button
+              type="button"
+              id={`copy-btn-${deal.id}`}
+              onClick={handleCopyCode}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                copied
+                  ? 'bg-emerald-500 text-white shadow-xs'
+                  : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-750'
+              }`}
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-gray-400" />
+                  <span>Copy</span>
+                </>
+              )}
+            </button>
+          </div>
+        )
       ) : (
         <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 rounded-xl p-3 mb-4 flex items-center justify-center text-center">
           <span className="text-gray-500 dark:text-gray-400 text-xs font-medium">
-            Direct Activation &bull; No code required at checkout
+            {deal.vipExclusive ? '👑 VIP Exclusive Drop · Direct Activation' : 'Direct Activation · No code required'}
           </span>
         </div>
       )}

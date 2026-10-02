@@ -124,6 +124,7 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
     expirationDate: '',
     featured: false,
     published: true,
+    vipExclusive: false,
   };
 
   const [formData, setFormData] = useState(emptyFormState);
@@ -220,7 +221,13 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
   const [replyStatus, setReplyStatus] = useState<DealRequest['status']>('deal_found');
   const [replySubmitting, setReplySubmitting] = useState(false);
 
-  // Payment Gateway Configuration State (Stripe / Bank Payouts)
+  // Payment Gateway Configuration State (PayPal / Stripe / Bank Payouts)
+  const [paypalEmail, setPaypalEmail] = useState(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem('dealscout_paypal_email') || '' : '';
+  });
+  const [paypalUsername, setPaypalUsername] = useState(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem('dealscout_paypal_username') || '' : '';
+  });
   const [stripeMonthlyUrl, setStripeMonthlyUrl] = useState(() => {
     return typeof window !== 'undefined' ? localStorage.getItem('dealscout_stripe_monthly_url') || '' : '';
   });
@@ -229,13 +236,18 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
   });
   const [payoutSaveNotice, setPayoutSaveNotice] = useState<string | null>(null);
 
+  // Audience Filter in Deals Table: 'all' | 'free' | 'vip'
+  const [tableAudienceFilter, setTableAudienceFilter] = useState<'all' | 'free' | 'vip'>('all');
+
   const handleSavePaymentSettings = (e: React.FormEvent) => {
     e.preventDefault();
     if (typeof window !== 'undefined') {
+      localStorage.setItem('dealscout_paypal_email', paypalEmail.trim());
+      localStorage.setItem('dealscout_paypal_username', paypalUsername.trim().replace(/^@/, ''));
       localStorage.setItem('dealscout_stripe_monthly_url', stripeMonthlyUrl.trim());
       localStorage.setItem('dealscout_stripe_yearly_url', stripeYearlyUrl.trim());
     }
-    setPayoutSaveNotice('Payment gateway configuration saved! Real funds will route directly to your account.');
+    setPayoutSaveNotice('Payment gateway configuration saved! Real funds will route directly to your PayPal or Stripe account.');
     setTimeout(() => setPayoutSaveNotice(null), 4000);
   };
 
@@ -425,9 +437,13 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
           expirationDate: formData.expirationDate,
           featured: formData.featured,
           published: formData.published,
+          vipExclusive: Boolean(formData.vipExclusive),
         });
 
-        setStatusMessage({ type: 'success', text: `Deal "${formData.title}" updated successfully!` });
+        setStatusMessage({
+          type: 'success',
+          text: `Deal "${formData.title}" updated successfully! (${formData.vipExclusive ? 'VIP Members Only' : 'Free Community'})`,
+        });
         setEditingDeal(null);
       } else {
         // Create new deal
@@ -444,9 +460,13 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
           expirationDate: formData.expirationDate,
           featured: formData.featured,
           published: formData.published,
+          vipExclusive: Boolean(formData.vipExclusive),
         });
 
-        setStatusMessage({ type: 'success', text: `New deal "${formData.title}" published successfully!` });
+        setStatusMessage({
+          type: 'success',
+          text: `New deal "${formData.title}" published successfully as ${formData.vipExclusive ? '👑 VIP Members Only' : '🌐 Free Community'}!`,
+        });
       }
 
       setFormData(emptyFormState);
@@ -475,6 +495,7 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
       expirationDate: deal.expirationDate || '',
       featured: deal.featured,
       published: deal.published,
+      vipExclusive: Boolean(deal.vipExclusive),
     });
     setActiveTab('add');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -512,6 +533,22 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
       );
     } catch (err: any) {
       setStatusMessage({ type: 'error', text: 'Failed to toggle featured status' });
+    }
+  };
+
+  const handleToggleVipExclusive = async (deal: Deal) => {
+    try {
+      const nextVip = !deal.vipExclusive;
+      await updateDeal(deal.id, { vipExclusive: nextVip });
+      setDeals((prev) =>
+        prev.map((d) => (d.id === deal.id ? { ...d, vipExclusive: nextVip } : d))
+      );
+      setStatusMessage({
+        type: 'success',
+        text: `"${deal.title}" audience switched to ${nextVip ? '👑 VIP Members Only' : '🌐 Free Community'}.`,
+      });
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: 'Failed to toggle VIP exclusive status' });
     }
   };
 
@@ -668,17 +705,20 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
 
               <div>
                 <label className="block text-[11px] font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                  Owner Email
+                  Administrator Email
                 </label>
                 <input
                   type="email"
                   value={adminEmailInput}
                   onChange={(e) => setAdminEmailInput(e.target.value)}
-                  placeholder="Enter administrator email..."
+                  placeholder="Enter administrator email manually..."
                   required
                   autoComplete="email"
                   className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 block">
+                  Admin email is private and not displayed. Please type your authorized email address.
+                </span>
               </div>
 
               <div>
@@ -783,12 +823,22 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
   const totalDeals = deals.length;
   const expiredDealsList = deals.filter((d) => isDealExpired(d));
   const activeDealsList = deals.filter((d) => d.published && !isDealExpired(d));
+  const freeDealsCount = deals.filter((d) => !d.vipExclusive && d.published && !isDealExpired(d)).length;
+  const vipDealsCount = deals.filter((d) => d.vipExclusive && d.published && !isDealExpired(d)).length;
   const totalClicks = deals.reduce((sum, d) => sum + (d.clicks || 0), 0);
   const dealsAddedThisMonth = deals.filter((d) => d.createdAt && d.createdAt.startsWith(currentMonthStr)).length;
+  const activeMembersCount = membershipsList.filter((m) => m.status === 'active').length;
+  const totalMembershipRevenue = membershipsList.reduce((acc, m) => acc + (m.price || 0), 0);
+  const mrr = membershipsList
+    .filter((m) => m.status === 'active')
+    .reduce((acc, m) => acc + (m.billingCycle === 'yearly' ? m.price / 12 : m.price), 0);
+  const pendingRequestsCount = dealRequests.filter((r) => r.status === 'pending').length;
 
   // Filter for table
   const filteredDeals = deals.filter((deal) => {
     if (activeTab === 'expired' && !isDealExpired(deal)) return false;
+    if (tableAudienceFilter === 'free' && deal.vipExclusive) return false;
+    if (tableAudienceFilter === 'vip' && !deal.vipExclusive) return false;
     if (tableSearch.trim()) {
       const q = tableSearch.toLowerCase();
       const matchName = deal.merchantName.toLowerCase().includes(q);
@@ -1020,49 +1070,80 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Quick Metrics Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
-                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3.5">
+              <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
+                <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
                   Total Deals
                 </span>
-                <span className="font-mono text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mt-1.5 block tabular-nums">
+                <span className="font-mono text-2xl font-black text-gray-900 dark:text-white mt-1 block tabular-nums">
                   {totalDeals}
                 </span>
+                <span className="text-[10px] text-gray-400 mt-0.5 block">{activeDealsList.length} active</span>
               </div>
 
-              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
-                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
-                  Active Deals
+              <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-emerald-200/80 dark:border-emerald-800/60 bg-emerald-50/20 dark:bg-emerald-950/10 shadow-xs">
+                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
+                  🌐 Free Deals
                 </span>
-                <span className="font-mono text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1.5 block tabular-nums">
-                  {activeDealsList.length}
+                <span className="font-mono text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block tabular-nums">
+                  {freeDealsCount}
+                </span>
+                <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5 block">Open to public</span>
+              </div>
+
+              <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-amber-300/80 dark:border-amber-500/40 bg-amber-50/20 dark:bg-amber-950/10 shadow-xs">
+                <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                  <Crown className="w-3.5 h-3.5 text-amber-500" />
+                  <span>VIP Drops</span>
+                </span>
+                <span className="font-mono text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 block tabular-nums">
+                  {vipDealsCount}
+                </span>
+                <span className="text-[10px] text-amber-600/80 dark:text-amber-400/80 mt-0.5 block">VIP Subscribers</span>
+              </div>
+
+              <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
+                <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider block">
+                  👑 Members
+                </span>
+                <span className="font-mono text-2xl font-black text-purple-600 dark:text-purple-400 mt-1 block tabular-nums">
+                  {activeMembersCount}
+                </span>
+                <span className="text-[10px] text-purple-600/80 dark:text-purple-400/80 mt-0.5 block">{membershipsList.length} total signups</span>
+              </div>
+
+              <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-emerald-300/80 dark:border-emerald-600/40 bg-emerald-50/20 dark:bg-emerald-950/10 shadow-xs">
+                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>VIP Revenue</span>
+                </span>
+                <span className="font-mono text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block tabular-nums">
+                  ${totalMembershipRevenue}
+                </span>
+                <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5 block">
+                  ~${Math.round(mrr)}/mo MRR
                 </span>
               </div>
 
-              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
-                <span className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider block">
-                  Expired Deals
-                </span>
-                <span className="font-mono text-2xl sm:text-3xl font-black text-red-600 dark:text-red-400 mt-1.5 block tabular-nums">
-                  {expiredDealsList.length}
-                </span>
-              </div>
-
-              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
-                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
+              <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
+                <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
                   Total Clicks
                 </span>
-                <span className="font-mono text-2xl sm:text-3xl font-black text-amber-500 dark:text-amber-400 mt-1.5 block tabular-nums">
+                <span className="font-mono text-2xl font-black text-amber-500 dark:text-amber-400 mt-1 block tabular-nums">
                   {totalClicks}
                 </span>
+                <span className="text-[10px] text-gray-400 mt-0.5 block">Affiliate traffic</span>
               </div>
 
-              <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs col-span-2 sm:col-span-1">
-                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider block">
-                  Added This Month
+              <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
+                <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider block">
+                  Concierge
                 </span>
-                <span className="font-mono text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400 mt-1.5 block tabular-nums">
-                  {dealsAddedThisMonth}
+                <span className="font-mono text-2xl font-black text-blue-600 dark:text-blue-400 mt-1 block tabular-nums">
+                  {pendingRequestsCount}
+                </span>
+                <span className="text-[10px] text-blue-600/80 dark:text-blue-400/80 mt-0.5 block">
+                  {pendingRequestsCount === 1 ? '1 pending request' : `${pendingRequestsCount} pending`}
                 </span>
               </div>
             </div>
@@ -1364,6 +1445,69 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
                 />
               </div>
 
+              {/* Target Audience / Access Tier */}
+              <div className="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-800">
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                  Target Audience / Access Tier *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label
+                    className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                      !formData.vipExclusive
+                        ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-950 dark:text-emerald-100 ring-2 ring-emerald-500/20'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 text-gray-700 dark:text-gray-300 hover:border-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="deal-audience-tier"
+                      checked={!formData.vipExclusive}
+                      onChange={() => setFormData({ ...formData, vipExclusive: false })}
+                      className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <div className="space-y-0.5">
+                      <span className="font-bold text-xs flex items-center gap-1.5">
+                        <span>🌐 Free Community Deal</span>
+                        <span className="bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] uppercase font-black px-1.5 py-0.2 rounded">
+                          Everyone
+                        </span>
+                      </span>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-normal">
+                        Publicly visible to all visitors. Anyone can copy the code and redeem the discount for free.
+                      </p>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                      formData.vipExclusive
+                        ? 'border-amber-400 bg-amber-50/60 dark:bg-amber-950/20 text-amber-950 dark:text-amber-100 ring-2 ring-amber-400/20'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 text-gray-700 dark:text-gray-300 hover:border-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="deal-audience-tier"
+                      checked={Boolean(formData.vipExclusive)}
+                      onChange={() => setFormData({ ...formData, vipExclusive: true })}
+                      className="mt-0.5 text-amber-600 focus:ring-amber-500"
+                    />
+                    <div className="space-y-0.5">
+                      <span className="font-bold text-xs flex items-center gap-1.5">
+                        <Crown className="w-3.5 h-3.5 text-amber-500" />
+                        <span>VIP Members Only Drop</span>
+                        <span className="bg-amber-400 text-gray-950 text-[10px] uppercase font-black px-1.5 py-0.2 rounded">
+                          VIP $20/mo
+                        </span>
+                      </span>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-normal">
+                        Restricted to paying VIP subscribers. Free visitors see a locked coupon badge and are prompted to join.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
               {/* Toggles: Featured & Published */}
               <div className="flex flex-wrap items-center gap-6 pt-2 border-t border-gray-200 dark:border-gray-800">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -1388,7 +1532,7 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
                     className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-gray-300 dark:border-gray-700"
                   />
                   <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                    Published (Visible to public visitors)
+                    Published (Visible on site)
                   </span>
                 </label>
               </div>
@@ -1427,19 +1571,59 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
         {(activeTab === 'manage' || activeTab === 'expired') && (
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs overflow-hidden">
             {/* Table Search and Filters */}
-            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/60 dark:bg-gray-900/50">
-              <div className="relative w-full sm:w-72">
-                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={tableSearch}
-                  onChange={(e) => setTableSearch(e.target.value)}
-                  placeholder="Filter store, title, or code..."
-                  className="w-full pl-9 pr-3 py-2 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:bg-white dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-                />
+            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-gray-50/60 dark:bg-gray-900/50">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={tableSearch}
+                    onChange={(e) => setTableSearch(e.target.value)}
+                    placeholder="Filter store, title, or code..."
+                    className="w-full pl-9 pr-3 py-2 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:bg-white dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+
+                {/* Audience filter toggle pills */}
+                <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-1 rounded-xl text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setTableAudienceFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                      tableAudienceFilter === 'all'
+                        ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 font-bold shadow-2xs'
+                        : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    All ({deals.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTableAudienceFilter('free')}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                      tableAudienceFilter === 'free'
+                        ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+                        : 'text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-400'
+                    }`}
+                  >
+                    <span>🌐 Free ({deals.filter((d) => !d.vipExclusive).length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTableAudienceFilter('vip')}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                      tableAudienceFilter === 'vip'
+                        ? 'bg-amber-400 text-gray-950 font-black shadow-2xs'
+                        : 'text-gray-500 hover:text-amber-600 dark:hover:text-amber-400'
+                    }`}
+                  >
+                    <Crown className="w-3 h-3 text-amber-500" />
+                    <span>VIP ({deals.filter((d) => d.vipExclusive).length})</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2 self-end sm:self-auto">
                 <button
                   onClick={() => {
                     setEditingDeal(null);
@@ -1467,6 +1651,7 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
                       <th className="py-3 px-4">Store</th>
                       <th className="py-3 px-4">Offer / Discount</th>
                       <th className="py-3 px-4">Coupon Code</th>
+                      <th className="py-3 px-4 text-center">Audience</th>
                       <th className="py-3 px-4 text-center">Status</th>
                       <th className="py-3 px-4 text-center">Clicks</th>
                       <th className="py-3 px-4">Expiration</th>
@@ -1519,6 +1704,29 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
                             ) : (
                               <span className="text-gray-400 dark:text-gray-500 font-normal">None</span>
                             )}
+                          </td>
+
+                          {/* Audience Tier (Click to Toggle) */}
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleVipExclusive(deal)}
+                              className={`text-xs px-2.5 py-1 rounded-full font-bold cursor-pointer transition-all inline-flex items-center gap-1 ${
+                                deal.vipExclusive
+                                  ? 'bg-amber-400 hover:bg-amber-500 text-gray-950 font-black shadow-2xs'
+                                  : 'bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300'
+                              }`}
+                              title="Click to toggle between VIP Members Only and Free Community"
+                            >
+                              {deal.vipExclusive ? (
+                                <>
+                                  <Crown className="w-3 h-3 text-gray-950" />
+                                  <span>VIP Only</span>
+                                </>
+                              ) : (
+                                <span>🌐 Free</span>
+                              )}
+                            </button>
                           </td>
 
                           {/* Status */}
@@ -2232,46 +2440,101 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
                 </h3>
               </div>
 
-              <div className="text-xs text-gray-600 dark:text-gray-300 space-y-2">
-                <p>
-                  <strong>Where does the money go?</strong> When users subscribe to DealScout VIP, payments process through your merchant gateway (such as <strong>Stripe</strong> or <strong>PayPal</strong>).
-                </p>
-                <p>
-                  <strong>How do you get it?</strong> Stripe and PayPal automatically transfer funds directly into your linked personal or business bank account on a regular schedule (daily or weekly).
+              <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs space-y-1.5 text-blue-950 dark:text-blue-200">
+                <span className="font-bold block text-sm">
+                  💡 Can you use your PayPal email to receive payments?
+                </span>
+                <p className="leading-relaxed">
+                  <strong>YES!</strong> You can enter your personal or business PayPal email address below. When users click <strong>Pay with PayPal</strong> during VIP checkout, the funds are sent straight to your PayPal balance. You can withdraw the money directly to your connected bank account anytime with 0 hassle.
                 </p>
               </div>
 
-              <form onSubmit={handleSavePaymentSettings} className="space-y-3 pt-2">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase text-gray-700 dark:text-gray-300 mb-1">
-                    Stripe / PayPal Payment Link — Monthly ($20/mo)
-                  </label>
+              <div className="text-xs text-gray-600 dark:text-gray-300 space-y-1.5">
+                <p>
+                  <strong>Where does the money go?</strong> When users subscribe to DealScout VIP ($20/mo or $216/yr), payments process through your merchant gateway (<strong>PayPal</strong> or <strong>Stripe</strong>).
+                </p>
+                <p>
+                  <strong>How do you get it?</strong> Both PayPal and Stripe automatically transfer funds directly into your linked bank account on a regular schedule (daily or weekly).
+                </p>
+              </div>
+
+              <form onSubmit={handleSavePaymentSettings} className="space-y-3.5 pt-2">
+                {/* PayPal Email Field */}
+                <div className="p-4 rounded-xl bg-white dark:bg-gray-900 border border-blue-200 dark:border-blue-900/60 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-blue-600 text-base italic">P</span>
+                    <label className="text-[11px] font-bold uppercase text-gray-800 dark:text-gray-200">
+                      Your PayPal Email Address (For Direct Payments)
+                    </label>
+                  </div>
                   <input
-                    type="url"
-                    value={stripeMonthlyUrl}
-                    onChange={(e) => setStripeMonthlyUrl(e.target.value)}
-                    placeholder="https://buy.stripe.com/... or https://paypal.me/..."
-                    className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    type="email"
+                    value={paypalEmail}
+                    onChange={(e) => setPaypalEmail(e.target.value)}
+                    placeholder="e.g. yourname@gmail.com or business@paypal.com"
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
                   />
-                  <span className="text-[10px] text-gray-400 block mt-0.5">
-                    Create a $20 recurring payment link on dashboard.stripe.com/payment-links
+                  <span className="text-[10px] text-gray-400 block">
+                    Payments made via PayPal will be routed directly to this PayPal account balance.
                   </span>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold uppercase text-gray-700 dark:text-gray-300 mb-1">
-                    Stripe / PayPal Payment Link — Yearly ($216/yr)
+                {/* PayPal.me Handle or Subscription Link */}
+                <div className="p-4 rounded-xl bg-white dark:bg-gray-900 border border-blue-200 dark:border-blue-900/60 space-y-2">
+                  <label className="block text-[11px] font-bold uppercase text-gray-800 dark:text-gray-200">
+                    PayPal.Me Username or Custom PayPal Link (Optional)
                   </label>
-                  <input
-                    type="url"
-                    value={stripeYearlyUrl}
-                    onChange={(e) => setStripeYearlyUrl(e.target.value)}
-                    placeholder="https://buy.stripe.com/... or https://paypal.me/..."
-                    className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                  <span className="text-[10px] text-gray-400 block mt-0.5">
-                    Create a $216 recurring yearly payment link (10% discount)
+                  <div className="flex items-center">
+                    <span className="px-3 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-500 text-xs font-mono rounded-l-xl border border-r-0 border-gray-300 dark:border-gray-700">
+                      paypal.me/
+                    </span>
+                    <input
+                      type="text"
+                      value={paypalUsername}
+                      onChange={(e) => setPaypalUsername(e.target.value)}
+                      placeholder="yourusername"
+                      className="w-full text-xs px-3 py-2.5 rounded-r-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-400 block">
+                    If set, clicking PayPal can open your PayPal.Me link ($20 or $216) in 1 tap.
                   </span>
+                </div>
+
+                {/* Stripe Payment Links */}
+                <div className="p-4 rounded-xl bg-white dark:bg-gray-900 border border-purple-200 dark:border-purple-900/60 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-purple-600 text-sm">S</span>
+                    <span className="text-[11px] font-bold uppercase text-gray-800 dark:text-gray-200">
+                      Stripe Payment Links (Optional Alternative)
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">
+                      Stripe Payment Link — Monthly ($20/mo)
+                    </label>
+                    <input
+                      type="url"
+                      value={stripeMonthlyUrl}
+                      onChange={(e) => setStripeMonthlyUrl(e.target.value)}
+                      placeholder="https://buy.stripe.com/..."
+                      className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">
+                      Stripe Payment Link — Yearly ($216/yr)
+                    </label>
+                    <input
+                      type="url"
+                      value={stripeYearlyUrl}
+                      onChange={(e) => setStripeYearlyUrl(e.target.value)}
+                      placeholder="https://buy.stripe.com/..."
+                      className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    />
+                  </div>
                 </div>
 
                 {payoutSaveNotice && (
@@ -2282,9 +2545,9 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
 
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold text-xs rounded-xl cursor-pointer shadow-xs transition-colors"
+                  className="px-5 py-2.5 bg-amber-400 hover:bg-amber-500 active:bg-amber-600 text-gray-950 font-bold text-xs rounded-xl cursor-pointer shadow-xs transition-colors"
                 >
-                  Save Payment Gateway Links
+                  Save Payment &amp; Payout Settings
                 </button>
               </form>
             </div>

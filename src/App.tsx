@@ -287,6 +287,11 @@ function MainApp() {
         <DealDetailModal
           deal={modalDeal}
           onClose={handleCloseDealModal}
+          isVip={membership?.status === 'active'}
+          onOpenMembership={() => {
+            handleCloseDealModal();
+            setIsMembershipOpen(true);
+          }}
           onOpenSupport={() => {
             handleCloseDealModal();
             setLegalModalType('support');
