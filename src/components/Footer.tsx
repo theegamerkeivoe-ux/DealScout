@@ -165,7 +165,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal, onOpenM
                   className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-900/60 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 font-semibold border border-dashed border-gray-300 dark:border-gray-800 transition-all cursor-pointer"
                 >
                   <Lock className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Staff &amp; Admin Sign In</span>
+                  <span>Owner &amp; Admin Sign In</span>
                 </button>
               )}
 

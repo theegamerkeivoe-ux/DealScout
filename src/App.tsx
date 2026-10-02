@@ -8,7 +8,7 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { AffiliatePortal } from './pages/AffiliatePortal';
 import { DealDetailModal } from './components/DealDetailModal';
 import { LegalModal } from './components/LegalModal';
-import { Deal } from './types';
+import { Deal, Membership } from './types';
 import {
   getPublishedDeals,
   getDealById,
@@ -18,8 +18,12 @@ import {
   setStoredAffiliateCode,
   recordAffiliateClick,
 } from './services/affiliateService';
+import { MembershipModal } from './components/MembershipModal';
+import { DealConciergeModal } from './components/DealConciergeModal';
+import { getUserMembership } from './services/membershipService';
 
 function MainApp() {
+  const { currentUser, isOwner } = useAuth();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,6 +33,43 @@ function MainApp() {
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
   const [modalDeal, setModalDeal] = useState<Deal | null>(null);
   const [legalModalType, setLegalModalType] = useState<'privacy' | 'terms' | 'support' | null>(null);
+
+  // VIP Membership & Concierge state
+  const [membership, setMembership] = useState<Membership | null>(null);
+  const [isMembershipOpen, setIsMembershipOpen] = useState(false);
+  const [isConciergeOpen, setIsConciergeOpen] = useState(false);
+
+  // Sync VIP Membership status for logged in user or local storage
+  useEffect(() => {
+    const userIdentifier = currentUser?.email || currentUser?.uid;
+    if (userIdentifier) {
+      getUserMembership(userIdentifier)
+        .then((mem) => {
+          if (mem) setMembership(mem);
+        })
+        .catch(() => {});
+    } else if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('dealscout_vip_membership');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setMembership(parsed);
+        } catch {}
+      }
+    }
+  }, [currentUser]);
+
+  // Global Admin Access Keyboard Shortcut (Ctrl+Shift+A or Alt+A)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') || (e.altKey && e.key.toLowerCase() === 'a')) {
+        e.preventDefault();
+        handleNavigate('admin');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Check URL query parameters for affiliate referral code (?ref=... or ?aff=...)
   useEffect(() => {
@@ -212,6 +253,8 @@ function MainApp() {
         currentView={currentView}
         onNavigate={handleNavigate}
         onOpenSupport={() => setLegalModalType('support')}
+        onOpenMembership={() => setIsMembershipOpen(true)}
+        onOpenConcierge={() => setIsConciergeOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -232,6 +275,9 @@ function MainApp() {
             onSearchChange={setSearchQuery}
             onSelectDeal={handleSelectDeal}
             onNavigateAdmin={() => handleNavigate('admin')}
+            onOpenMembership={() => setIsMembershipOpen(true)}
+            onOpenConcierge={() => setIsConciergeOpen(true)}
+            membership={membership}
           />
         )}
       </main>
@@ -247,6 +293,29 @@ function MainApp() {
           }}
         />
       )}
+
+      {/* VIP Membership Modal ($20/mo or Save 10% on Yearly Plan) */}
+      <MembershipModal
+        isOpen={isMembershipOpen}
+        onClose={() => setIsMembershipOpen(false)}
+        currentMembership={membership}
+        onMembershipUpdated={(newMem) => setMembership(newMem)}
+        onRequestDealClick={() => {
+          setIsMembershipOpen(false);
+          setIsConciergeOpen(true);
+        }}
+      />
+
+      {/* VIP Deal Concierge Modal (Ask us to find deals for whatever you want) */}
+      <DealConciergeModal
+        isOpen={isConciergeOpen}
+        onClose={() => setIsConciergeOpen(false)}
+        membership={membership}
+        onOpenMembership={() => {
+          setIsConciergeOpen(false);
+          setIsMembershipOpen(true);
+        }}
+      />
 
       {/* Legal & Support Modal (Privacy Policy / Terms of Service / Support) */}
       <LegalModal
@@ -265,6 +334,7 @@ function MainApp() {
         <Footer
           onNavigate={(view) => handleNavigate(view)}
           onOpenLegal={(type) => setLegalModalType(type)}
+          onOpenMembership={() => setIsMembershipOpen(true)}
         />
       )}
     </div>

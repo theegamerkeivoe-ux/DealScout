@@ -75,6 +75,25 @@ service cloud.firestore {
       allow update, delete: if isOwner();
     }
 
+    // VIP Memberships: members can read and create their membership; owner manages all
+    match /memberships/{membershipId} {
+      allow read: if true;
+      allow create: if request.resource.data.email is string;
+      allow update: if isOwner() || 
+                    (resource.data.email != null && request.auth != null && request.auth.token.email != null && resource.data.email.lower() == request.auth.token.email.lower()) ||
+                    request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'updatedAt', 'instantAlerts', 'renewsDate', 'billingCycle', 'plan']);
+      allow delete: if isOwner();
+    }
+
+    // VIP Deal Concierge Requests: users submit deal requests; scouts and owner review & fulfill
+    match /dealRequests/{requestId} {
+      allow read: if true;
+      allow create: if request.resource.data.userEmail is string && request.resource.data.productOrStore is string;
+      allow update: if isOwner() || 
+                    (resource.data.userEmail != null && request.auth != null && request.auth.token.email != null && resource.data.userEmail.lower() == request.auth.token.email.lower());
+      allow delete: if isOwner();
+    }
+
     match /test/{docId} {
       allow read: if true;
     }

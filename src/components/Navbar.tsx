@@ -55,7 +55,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Logo matching dee.JPG */}
           <div
             id="nav-brand-logo"
-            onClick={() => handleNavClick('home')}
+            onClick={(e) => {
+              if (e.altKey) {
+                handleNavClick('admin');
+              } else {
+                handleNavClick('home');
+              }
+            }}
+            title={isOwner ? 'DealScout Home' : 'DealScout — Verified Promo Codes (Alt+Click for Admin Sign In)'}
             className="flex items-center gap-2.5 cursor-pointer select-none shrink-0 group"
           >
             <DealScoutLogo size={36} />
@@ -167,7 +174,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* Admin Access: Prominent when authenticated as owner, Discreet lock button when logged out */}
+            {/* Admin Access: Only authenticated owner sees 'Admin Panel' button */}
             {isOwner ? (
               <>
                 <div className="w-px h-4 bg-gray-200 dark:bg-gray-800 mx-1" />
@@ -183,13 +190,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               </>
             ) : (
               <button
-                id="nav-staff-login-btn"
+                id="nav-admin-signin-btn"
                 onClick={() => handleNavClick('admin')}
-                className="p-2 rounded-xl text-gray-400 hover:text-amber-500 dark:text-gray-500 dark:hover:text-amber-400 transition-colors cursor-pointer"
-                title="Staff / Admin Access"
-                aria-label="Admin Access"
+                className="px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-amber-500 hover:bg-amber-400/5 dark:text-gray-500 dark:hover:text-amber-400 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-medium"
+                title="Owner / Admin Sign In (Shortcut: Alt+A)"
+                aria-label="Admin Sign In"
               >
-                <Lock className="w-3.5 h-3.5" />
+                <Lock className="w-3.5 h-3.5 text-amber-500/80" />
+                <span className="hidden lg:inline text-[11px] font-semibold">Admin Sign In</span>
               </button>
             )}
           </nav>
@@ -306,7 +314,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 font-bold text-xs uppercase tracking-wider cursor-pointer"
               >
                 <Lock className="w-3.5 h-3.5 text-amber-500" />
-                <span>Staff &amp; Admin Sign In</span>
+                <span>Owner &amp; Admin Sign In</span>
               </button>
             )}
           </div>

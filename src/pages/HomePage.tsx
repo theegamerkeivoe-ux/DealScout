@@ -1,8 +1,22 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Tag, PlusCircle, Sparkles, Star, CheckCircle2, SlidersHorizontal, X } from 'lucide-react';
-import { Deal } from '../types';
+import {
+  Search,
+  Tag,
+  PlusCircle,
+  Sparkles,
+  Star,
+  CheckCircle2,
+  SlidersHorizontal,
+  X,
+  Crown,
+  ArrowRight,
+  Bell,
+  Check,
+} from 'lucide-react';
+import { Deal, Membership } from '../types';
 import { DealCard } from '../components/DealCard';
 import { isDealExpired } from '../services/dealService';
+import { useAuth } from '../context/AuthContext';
 
 interface HomePageProps {
   deals: Deal[];
@@ -11,6 +25,9 @@ interface HomePageProps {
   onSearchChange: (query: string) => void;
   onSelectDeal: (deal: Deal) => void;
   onNavigateAdmin?: () => void;
+  onOpenMembership?: () => void;
+  onOpenConcierge?: () => void;
+  membership?: Membership | null;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
@@ -20,9 +37,14 @@ export const HomePage: React.FC<HomePageProps> = ({
   onSearchChange,
   onSelectDeal,
   onNavigateAdmin,
+  onOpenMembership,
+  onOpenConcierge,
+  membership,
 }) => {
+  const { isOwner } = useAuth();
   // Selected category/store filter ('all', 'featured', 'codes', or a specific store name)
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  const isVip = Boolean(membership && membership.status === 'active');
 
   // Only show active deals to public visitors (published and not expired)
   const activeDeals = useMemo(() => {
@@ -199,6 +221,46 @@ export const HomePage: React.FC<HomePageProps> = ({
 
       {/* Main Content Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+        {/* Sleek, Compact VIP Membership Strip */}
+        <div className="rounded-2xl bg-amber-500/10 dark:bg-amber-400/5 border border-amber-300/40 dark:border-amber-500/20 px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5 text-center sm:text-left">
+            <div className="w-7 h-7 rounded-lg bg-amber-400 text-gray-950 flex items-center justify-center shrink-0 shadow-2xs">
+              <Crown className="w-3.5 h-3.5" />
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="font-bold text-gray-900 dark:text-white">
+                VIP Membership
+              </span>
+              <span className="text-gray-400 dark:text-gray-500 hidden sm:inline">&bull;</span>
+              <span className="text-gray-600 dark:text-gray-300">
+                Ask our scouts to find deals for whatever you want ($20/mo &middot; Save 10% yearly). Free version still remains for everyone.
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {isVip ? (
+              <button
+                type="button"
+                onClick={onOpenConcierge}
+                className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+              >
+                <Crown className="w-3.5 h-3.5" />
+                <span>Ask for Deals</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenMembership}
+                className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Join VIP ($20/mo)</span>
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Active Filter Notification Bar */}
         {hasActiveFilters && (
           <div className="flex items-center justify-between p-3.5 bg-amber-500/10 dark:bg-amber-950/30 border border-amber-300/60 dark:border-amber-800/60 rounded-xl text-xs text-amber-950 dark:text-amber-200">
@@ -248,7 +310,9 @@ export const HomePage: React.FC<HomePageProps> = ({
               {searchQuery || selectedFilter !== 'all'
                 ? 'Try tweaking your search keywords or reset filters to see all available promotional codes.'
                 : deals.length === 0
-                ? 'Your deal catalog is set up and ready. Log into the Admin Panel to publish your first verified deal or coupon code.'
+                ? isOwner
+                  ? 'Your deal catalog is set up and ready. Log into the Admin Panel to publish your first verified deal or coupon code.'
+                  : 'Fresh deals and discounts are being added soon! Check back shortly or join our VIP Club to request custom deals.'
                 : 'No deals available at this moment.'}
             </p>
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -261,7 +325,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   View All Deals
                 </button>
               )}
-              {deals.length === 0 && onNavigateAdmin && (
+              {deals.length === 0 && isOwner && onNavigateAdmin && (
                 <button
                   type="button"
                   onClick={onNavigateAdmin}
@@ -269,6 +333,16 @@ export const HomePage: React.FC<HomePageProps> = ({
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>Go to Admin Panel</span>
+                </button>
+              )}
+              {deals.length === 0 && !isOwner && onOpenMembership && (
+                <button
+                  type="button"
+                  onClick={onOpenMembership}
+                  className="px-5 py-2.5 rounded-xl bg-amber-400 text-gray-950 font-bold text-xs uppercase tracking-wider hover:bg-amber-500 transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
+                >
+                  <Crown className="w-4 h-4" />
+                  <span>Join VIP Club ($20/mo)</span>
                 </button>
               )}
             </div>
