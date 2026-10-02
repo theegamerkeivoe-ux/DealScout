@@ -68,6 +68,13 @@ export const MembershipModal: React.FC<MembershipModalProps> = ({
   const isMemberActive = currentMembership && currentMembership.status === 'active';
   const amountToPay = billingCycle === 'yearly' ? 216 : 20;
 
+  // Retrieve admin-configured Stripe/PayPal payment link if set
+  const stripePaymentLink = typeof window !== 'undefined'
+    ? (billingCycle === 'yearly'
+        ? localStorage.getItem('dealscout_stripe_yearly_url')
+        : localStorage.getItem('dealscout_stripe_monthly_url'))
+    : null;
+
   // Format Card Number input with spaces: 0000 0000 0000 0000
   const handleCardNumberChange = (val: string) => {
     const raw = val.replace(/\D/g, '').slice(0, 16);
@@ -456,6 +463,21 @@ export const MembershipModal: React.FC<MembershipModalProps> = ({
                     <span>Fast Pay with Apple Pay</span>
                   </button>
                 </div>
+
+                {stripePaymentLink && (
+                  <div className="pt-1.5">
+                    <a
+                      href={stripePaymentLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-3 px-4 rounded-2xl bg-[#635BFF] hover:bg-[#5851E0] text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-all"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Pay with Official Stripe Checkout (${amountToPay}.00)</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                )}
               </div>
 
               {/* Divider */}

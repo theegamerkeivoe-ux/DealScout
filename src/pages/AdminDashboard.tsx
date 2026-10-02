@@ -32,6 +32,7 @@ import {
   Check,
   Lock,
   Crown,
+  CreditCard,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Deal, SupportComment, Affiliate, AffiliateConversion, Membership, DealRequest } from '../types';
@@ -131,13 +132,17 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
 
   // Admin Passcode Security Login State
   const [adminPasscode, setAdminPasscode] = useState('');
-  const [adminEmailInput, setAdminEmailInput] = useState('theegamerkeivoe@gmail.com');
+  const [adminEmailInput, setAdminEmailInput] = useState('');
   const [showPasscode, setShowPasscode] = useState(false);
   const [passcodeError, setPasscodeError] = useState<string | null>(null);
   const [isVerifyingPasscode, setIsVerifyingPasscode] = useState(false);
 
   const handlePasscodeLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!adminEmailInput.trim()) {
+      setPasscodeError('Please enter your administrator email.');
+      return;
+    }
     if (!adminPasscode.trim()) {
       setPasscodeError('Please enter your administrator passcode.');
       return;
@@ -147,7 +152,7 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
     try {
       const ok = await signInAsOwner(adminPasscode.trim(), adminEmailInput.trim());
       if (!ok) {
-        setPasscodeError('Access denied: Incorrect administrator passcode.');
+        setPasscodeError('Access denied: Incorrect administrator email or passcode.');
       }
     } catch (err: any) {
       setPasscodeError(err?.message || 'Verification connection failed.');
@@ -214,6 +219,25 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
   const [replyDealUrl, setReplyDealUrl] = useState('');
   const [replyStatus, setReplyStatus] = useState<DealRequest['status']>('deal_found');
   const [replySubmitting, setReplySubmitting] = useState(false);
+
+  // Payment Gateway Configuration State (Stripe / Bank Payouts)
+  const [stripeMonthlyUrl, setStripeMonthlyUrl] = useState(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem('dealscout_stripe_monthly_url') || '' : '';
+  });
+  const [stripeYearlyUrl, setStripeYearlyUrl] = useState(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem('dealscout_stripe_yearly_url') || '' : '';
+  });
+  const [payoutSaveNotice, setPayoutSaveNotice] = useState<string | null>(null);
+
+  const handleSavePaymentSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dealscout_stripe_monthly_url', stripeMonthlyUrl.trim());
+      localStorage.setItem('dealscout_stripe_yearly_url', stripeYearlyUrl.trim());
+    }
+    setPayoutSaveNotice('Payment gateway configuration saved! Real funds will route directly to your account.');
+    setTimeout(() => setPayoutSaveNotice(null), 4000);
+  };
 
   const fetchMembershipsAndRequests = async () => {
     if (!isOwner) return;
@@ -650,8 +674,9 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
                   type="email"
                   value={adminEmailInput}
                   onChange={(e) => setAdminEmailInput(e.target.value)}
-                  placeholder="theegamerkeivoe@gmail.com"
+                  placeholder="Enter administrator email..."
                   required
+                  autoComplete="email"
                   className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </div>
@@ -2196,6 +2221,72 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
               <span className="text-[11px] text-gray-500 dark:text-gray-400 block">
                 To update the owner email, change the <code className="font-mono">OWNER_EMAIL</code> environment variable.
               </span>
+            </div>
+
+            {/* Payment Gateway & Bank Payouts Configuration */}
+            <div className="p-5 bg-gradient-to-br from-amber-500/10 via-yellow-500/5 to-transparent dark:from-amber-950/30 dark:via-gray-800 dark:to-gray-800 rounded-xl border border-amber-300 dark:border-amber-800/80 space-y-4">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-amber-500" />
+                <h3 className="font-bold text-sm text-gray-900 dark:text-white">
+                  Payment Gateway &amp; Direct Bank Payouts
+                </h3>
+              </div>
+
+              <div className="text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                <p>
+                  <strong>Where does the money go?</strong> When users subscribe to DealScout VIP, payments process through your merchant gateway (such as <strong>Stripe</strong> or <strong>PayPal</strong>).
+                </p>
+                <p>
+                  <strong>How do you get it?</strong> Stripe and PayPal automatically transfer funds directly into your linked personal or business bank account on a regular schedule (daily or weekly).
+                </p>
+              </div>
+
+              <form onSubmit={handleSavePaymentSettings} className="space-y-3 pt-2">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-gray-700 dark:text-gray-300 mb-1">
+                    Stripe / PayPal Payment Link — Monthly ($20/mo)
+                  </label>
+                  <input
+                    type="url"
+                    value={stripeMonthlyUrl}
+                    onChange={(e) => setStripeMonthlyUrl(e.target.value)}
+                    placeholder="https://buy.stripe.com/... or https://paypal.me/..."
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  <span className="text-[10px] text-gray-400 block mt-0.5">
+                    Create a $20 recurring payment link on dashboard.stripe.com/payment-links
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-gray-700 dark:text-gray-300 mb-1">
+                    Stripe / PayPal Payment Link — Yearly ($216/yr)
+                  </label>
+                  <input
+                    type="url"
+                    value={stripeYearlyUrl}
+                    onChange={(e) => setStripeYearlyUrl(e.target.value)}
+                    placeholder="https://buy.stripe.com/... or https://paypal.me/..."
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  <span className="text-[10px] text-gray-400 block mt-0.5">
+                    Create a $216 recurring yearly payment link (10% discount)
+                  </span>
+                </div>
+
+                {payoutSaveNotice && (
+                  <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 text-emerald-800 dark:text-emerald-300 rounded-lg text-xs font-semibold">
+                    {payoutSaveNotice}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold text-xs rounded-xl cursor-pointer shadow-xs transition-colors"
+                >
+                  Save Payment Gateway Links
+                </button>
+              </form>
             </div>
 
             {/* Database connection test */}
