@@ -34,6 +34,9 @@ export interface Membership {
   startDate: string;
   renewsDate: string;
   instantAlerts: boolean;
+  paymentMethod?: string;
+  transactionId?: string;
+  lastFour?: string;
   categoriesOfInterest?: string[];
   createdAt: string;
   updatedAt: string;

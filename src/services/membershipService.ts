@@ -120,7 +120,12 @@ export async function getUserMembership(userEmailOrId: string): Promise<Membersh
 export async function activateMembership(
   user: { uid?: string; email: string; displayName?: string | null },
   plan: 'monthly' | 'yearly',
-  instantAlerts: boolean = true
+  instantAlerts: boolean = true,
+  paymentDetails?: {
+    method?: string;
+    transactionId?: string;
+    lastFour?: string;
+  }
 ): Promise<Membership> {
   const now = new Date();
   const renews = new Date(now);
@@ -142,6 +147,9 @@ export async function activateMembership(
     startDate: now.toISOString(),
     renewsDate: renews.toISOString(),
     instantAlerts,
+    paymentMethod: paymentDetails?.method || 'Credit Card',
+    transactionId: paymentDetails?.transactionId || 'TXN-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+    lastFour: paymentDetails?.lastFour || '4242',
     categoriesOfInterest: ['Electronics', 'Fashion', 'Gaming', 'Home & Kitchen', 'Travel'],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
