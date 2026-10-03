@@ -147,9 +147,9 @@ export async function activateMembership(
     startDate: now.toISOString(),
     renewsDate: renews.toISOString(),
     instantAlerts,
-    paymentMethod: paymentDetails?.method || 'Credit Card',
-    transactionId: paymentDetails?.transactionId || 'TXN-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
-    lastFour: paymentDetails?.lastFour || '4242',
+    paymentMethod: paymentDetails?.method || 'PayPal Checkout',
+    transactionId: paymentDetails?.transactionId || 'PP-' + Date.now().toString(36).toUpperCase(),
+    lastFour: paymentDetails?.lastFour || '',
     categoriesOfInterest: ['Electronics', 'Fashion', 'Gaming', 'Home & Kitchen', 'Travel'],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
@@ -163,6 +163,17 @@ export async function activateMembership(
 
   if (typeof window !== 'undefined') {
     localStorage.setItem(LOCAL_MEMBERSHIP_KEY, JSON.stringify(membership));
+    try {
+      const rawAll = localStorage.getItem('dealscout_all_memberships_local') || '[]';
+      const all: Membership[] = JSON.parse(rawAll);
+      const existingIdx = all.findIndex((m) => m.id === membership.id || m.email === membership.email);
+      if (existingIdx >= 0) {
+        all[existingIdx] = membership;
+      } else {
+        all.unshift(membership);
+      }
+      localStorage.setItem('dealscout_all_memberships_local', JSON.stringify(all));
+    } catch {}
   }
 
   return membership;
@@ -239,25 +250,49 @@ export async function updateMemberAlerts(
  * Fetch all memberships (for Admin view)
  */
 export async function getAllMemberships(): Promise<Membership[]> {
+  const mergedMap = new Map<string, Membership>();
+
+  // Check local stored list first
+  if (typeof window !== 'undefined') {
+    try {
+      const rawAll = localStorage.getItem('dealscout_all_memberships_local');
+      if (rawAll) {
+        const parsed: Membership[] = JSON.parse(rawAll);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((m) => {
+            if (m && m.email) mergedMap.set(m.email.toLowerCase().trim(), m);
+          });
+        }
+      }
+    } catch {}
+
+    const stored = localStorage.getItem(LOCAL_MEMBERSHIP_KEY);
+    if (stored) {
+      try {
+        const mem: Membership = JSON.parse(stored);
+        if (mem && mem.email) mergedMap.set(mem.email.toLowerCase().trim(), mem);
+      } catch {}
+    }
+  }
+
+  // Fetch Firestore remote memberships
   try {
     const snap = await getDocs(collection(db, MEMBERSHIPS_COLLECTION));
     if (!snap.empty) {
-      return snap.docs.map((d) => d.data() as Membership);
+      snap.docs.forEach((d) => {
+        const data = d.data() as Membership;
+        if (data && data.email) {
+          mergedMap.set(data.email.toLowerCase().trim(), data);
+        }
+      });
     }
   } catch (err) {
     console.warn('Failed to fetch memberships from Firestore:', err);
   }
 
-  // Fallback to local session if present
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem(LOCAL_MEMBERSHIP_KEY);
-    if (stored) {
-      try {
-        return [JSON.parse(stored)];
-      } catch {}
-    }
-  }
-  return [];
+  const result = Array.from(mergedMap.values());
+  result.sort((a, b) => new Date(b.createdAt || b.startDate).getTime() - new Date(a.createdAt || a.startDate).getTime());
+  return result;
 }
 
 /**

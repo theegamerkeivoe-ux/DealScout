@@ -140,10 +140,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="nav-vip-club-btn"
                 onClick={onOpenMembership}
                 className="px-3 py-1.5 rounded-xl border border-amber-400/50 bg-amber-400/10 hover:bg-amber-400/20 text-amber-900 dark:text-yellow-400 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all"
-                title="Join VIP Membership ($20/mo or Save 10% Yearly)"
+                title="Join VIP Membership"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>VIP Club ($20/mo)</span>
+                <span>VIP Club</span>
               </button>
             ) : null}
 
@@ -281,7 +281,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="text-left px-3 py-2.5 rounded-lg text-base font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer flex items-center gap-2"
               >
                 <Sparkles className="w-4 h-4 text-amber-500" />
-                <span>Join VIP Club ($20/mo)</span>
+                <span>Join VIP Club</span>
               </button>
             ) : null}
 

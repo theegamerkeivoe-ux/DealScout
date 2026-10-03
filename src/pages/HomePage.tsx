@@ -264,7 +264,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               </span>
               <span className="text-gray-400 dark:text-gray-500 hidden sm:inline">&bull;</span>
               <span className="text-gray-600 dark:text-gray-300">
-                Ask our scouts to find deals for whatever you want ($20/mo &middot; Save 10% yearly). Free version still remains for everyone.
+                Ask our scouts to find deals for whatever you want. Free version still remains for everyone.
               </span>
             </div>
           </div>
@@ -286,7 +286,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Join VIP ($20/mo)</span>
+                <span>Join VIP</span>
               </button>
             )}
           </div>
@@ -373,7 +373,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   className="px-5 py-2.5 rounded-xl bg-amber-400 text-gray-950 font-bold text-xs uppercase tracking-wider hover:bg-amber-500 transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
                 >
                   <Crown className="w-4 h-4" />
-                  <span>Join VIP Club ($20/mo)</span>
+                  <span>Join VIP Club</span>
                 </button>
               )}
             </div>

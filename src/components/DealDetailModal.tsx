@@ -342,7 +342,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
                     className="w-full sm:w-auto px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition-all"
                   >
                     <Lock className="w-3.5 h-3.5" />
-                    <span>Unlock with VIP ($20/mo)</span>
+                    <span>Unlock with VIP</span>
                   </button>
                 )}
               </div>

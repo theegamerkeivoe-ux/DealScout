@@ -33,6 +33,13 @@ import {
   Lock,
   Crown,
   CreditCard,
+  Mail,
+  Copy,
+  Send,
+  Inbox,
+  UserCheck,
+  UserX,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Deal, SupportComment, Affiliate, AffiliateConversion, Membership, DealRequest } from '../types';
@@ -60,6 +67,8 @@ import {
   getAllMemberships,
   getAllDealRequests,
   respondToDealRequest,
+  activateMembership,
+  cancelMembership,
 } from '../services/membershipService';
 import { testFirestoreConnection } from '../firebase';
 import { LogoUploader } from '../components/LogoUploader';
@@ -220,6 +229,93 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
   const [replyDealUrl, setReplyDealUrl] = useState('');
   const [replyStatus, setReplyStatus] = useState<DealRequest['status']>('deal_found');
   const [replySubmitting, setReplySubmitting] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+  const [copyAllNotice, setCopyAllNotice] = useState<string | null>(null);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberPlan, setNewMemberPlan] = useState<'monthly' | 'yearly'>('monthly');
+  const [newMemberTxId, setNewMemberTxId] = useState('');
+  const [addingMember, setAddingMember] = useState(false);
+  const [memberFilterStatus, setMemberFilterStatus] = useState<'all' | 'active' | 'cancelled'>('all');
+
+  const handleCopyEmail = (email: string) => {
+    try {
+      navigator.clipboard.writeText(email);
+      setCopiedEmail(email);
+      setTimeout(() => setCopiedEmail(null), 2000);
+    } catch {}
+  };
+
+  const handleCopyAllEmails = () => {
+    const emails = Array.from(new Set(membershipsList.map((m) => m.email).filter(Boolean)));
+    if (emails.length === 0) {
+      alert('No member emails to copy yet.');
+      return;
+    }
+    try {
+      navigator.clipboard.writeText(emails.join(', '));
+      setCopyAllNotice(`Copied ${emails.length} subscriber email${emails.length > 1 ? 's' : ''}!`);
+      setTimeout(() => setCopyAllNotice(null), 3000);
+    } catch {}
+  };
+
+  const handleManualAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = newMemberEmail.trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      alert('Please enter a valid member email address.');
+      return;
+    }
+    setAddingMember(true);
+    try {
+      const mem = await activateMembership(
+        { email, displayName: newMemberName.trim() || undefined },
+        newMemberPlan,
+        true,
+        {
+          method: 'Admin Manual Enrollment',
+          transactionId: newMemberTxId.trim() || 'MANUAL-' + Date.now().toString(36).toUpperCase(),
+        }
+      );
+      setMembershipsList((prev) => [mem, ...prev.filter((m) => m.id !== mem.id)]);
+      setShowAddMemberModal(false);
+      setNewMemberEmail('');
+      setNewMemberName('');
+      setNewMemberTxId('');
+      setStatusMessage({ type: 'success', text: `VIP member ${mem.email} enrolled successfully!` });
+    } catch (err: any) {
+      alert(err?.message || 'Failed to add member.');
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const handleToggleMemberStatus = async (member: Membership) => {
+    try {
+      if (member.status === 'active') {
+        await cancelMembership(member.id);
+        setMembershipsList((prev) =>
+          prev.map((m) => (m.id === member.id ? { ...m, status: 'cancelled' } : m))
+        );
+        setStatusMessage({ type: 'success', text: `Membership for ${member.email} updated to Cancelled.` });
+      } else {
+        const reactivated = await activateMembership(
+          { email: member.email, displayName: member.displayName },
+          member.plan,
+          true,
+          { method: member.paymentMethod, transactionId: member.transactionId }
+        );
+        setMembershipsList((prev) =>
+          prev.map((m) => (m.id === member.id ? reactivated : m))
+        );
+        setStatusMessage({ type: 'success', text: `Membership for ${member.email} reactivated!` });
+      }
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err?.message || 'Failed to update membership status.' });
+    }
+  };
 
   // Payment Gateway Configuration State (PayPal / Stripe / Bank Payouts)
   const [paypalEmail, setPaypalEmail] = useState(() => {
@@ -1102,26 +1198,48 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
                 <span className="text-[10px] text-amber-600/80 dark:text-amber-400/80 mt-0.5 block">VIP Subscribers</span>
               </div>
 
-              <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
-                <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider block">
-                  👑 Members
-                </span>
+              <div
+                onClick={() => {
+                  setActiveTab('concierge');
+                  fetchMembershipsAndRequests();
+                }}
+                className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs hover:border-amber-400 dark:hover:border-amber-500 cursor-pointer transition-all"
+                title="Click to view VIP Members & Emails"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider block">
+                    👑 VIP Members
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
                 <span className="font-mono text-2xl font-black text-purple-600 dark:text-purple-400 mt-1 block tabular-nums">
                   {activeMembersCount}
                 </span>
-                <span className="text-[10px] text-purple-600/80 dark:text-purple-400/80 mt-0.5 block">{membershipsList.length} total signups</span>
+                <span className="text-[10px] text-purple-600/80 dark:text-purple-400/80 mt-0.5 block">
+                  {membershipsList.length} total signups &bull; View emails &rarr;
+                </span>
               </div>
 
-              <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-emerald-300/80 dark:border-emerald-600/40 bg-emerald-50/20 dark:bg-emerald-950/10 shadow-xs">
-                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1">
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>VIP Revenue</span>
-                </span>
+              <div
+                onClick={() => {
+                  setActiveTab('concierge');
+                  fetchMembershipsAndRequests();
+                }}
+                className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-emerald-300/80 dark:border-emerald-600/40 bg-emerald-50/20 dark:bg-emerald-950/10 shadow-xs hover:border-emerald-500 cursor-pointer transition-all"
+                title="Click to view VIP Member Revenue & Receipts"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>VIP Revenue</span>
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500" />
+                </div>
                 <span className="font-mono text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block tabular-nums">
                   ${totalMembershipRevenue}
                 </span>
                 <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5 block">
-                  ~${Math.round(mrr)}/mo MRR
+                  ~${Math.round(mrr)}/mo MRR &bull; Direct Payouts
                 </span>
               </div>
 
@@ -1135,15 +1253,25 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
                 <span className="text-[10px] text-gray-400 mt-0.5 block">Affiliate traffic</span>
               </div>
 
-              <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs">
-                <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider block">
-                  Concierge
-                </span>
+              <div
+                onClick={() => {
+                  setActiveTab('concierge');
+                  fetchMembershipsAndRequests();
+                }}
+                className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs hover:border-blue-400 cursor-pointer transition-all"
+                title="Click to view VIP Concierge Requests"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider block">
+                    Concierge
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-blue-400" />
+                </div>
                 <span className="font-mono text-2xl font-black text-blue-600 dark:text-blue-400 mt-1 block tabular-nums">
                   {pendingRequestsCount}
                 </span>
                 <span className="text-[10px] text-blue-600/80 dark:text-blue-400/80 mt-0.5 block">
-                  {pendingRequestsCount === 1 ? '1 pending request' : `${pendingRequestsCount} pending`}
+                  {pendingRequestsCount === 1 ? '1 pending request' : `${pendingRequestsCount} pending`} &bull; Respond &rarr;
                 </span>
               </div>
             </div>
@@ -2400,6 +2528,706 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
                 </div>
               );
             })()}
+          </div>
+        )}
+
+        {/* 6. VIP MEMBERS & SUBSCRIBER DIRECTORY TAB */}
+        {activeTab === 'concierge' && (
+          <div className="space-y-8 animate-in fade-in duration-200">
+            {/* Header & Quick Action Banner */}
+            <div className="bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/5 dark:from-amber-950/40 dark:via-gray-900 dark:to-gray-900 border border-amber-300/80 dark:border-amber-800/60 rounded-3xl p-6 sm:p-7 shadow-xs">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-400 text-gray-950 flex items-center justify-center font-bold shrink-0 shadow-md">
+                    <Crown className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2.5">
+                      <h2 className="font-display text-xl sm:text-2xl font-black text-gray-900 dark:text-white">
+                        VIP Members &amp; Subscriber Directory
+                      </h2>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-400 text-gray-950">
+                        {membershipsList.length} Total
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 max-w-2xl leading-relaxed">
+                      View all paying VIP members, see their <strong>registered email addresses</strong>, copy emails for updates, verify transaction receipts, and respond to custom deal hunt requests.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleCopyAllEmails}
+                    className="px-4 py-2.5 rounded-xl bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 text-xs font-bold flex items-center gap-2 cursor-pointer shadow-xs transition-all"
+                    title="Copy all member emails to clipboard"
+                  >
+                    <Mail className="w-4 h-4 text-amber-500" />
+                    <span>Copy All Member Emails</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAddMemberModal(true)}
+                    className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-md transition-all"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>+ Enroll Member</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={fetchMembershipsAndRequests}
+                    className="p-2.5 rounded-xl bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-gray-700 cursor-pointer shadow-xs transition-all"
+                    title="Refresh data"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {copyAllNotice && (
+                <div className="mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>{copyAllNotice}</span>
+                </div>
+              )}
+
+              {/* Quick Metrics Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-5 mt-5 border-t border-amber-300/40 dark:border-amber-800/40">
+                <div className="bg-white/80 dark:bg-gray-900/80 p-3.5 rounded-2xl border border-gray-200/80 dark:border-gray-800">
+                  <span className="text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 block">
+                    Active Subscribers
+                  </span>
+                  <span className="font-mono text-xl font-black text-gray-900 dark:text-white block mt-0.5">
+                    {activeMembersCount}
+                  </span>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block mt-0.5">
+                    {membershipsList.length > 0 ? `${Math.round((activeMembersCount / membershipsList.length) * 100)}% retention` : 'No signups yet'}
+                  </span>
+                </div>
+
+                <div className="bg-white/80 dark:bg-gray-900/80 p-3.5 rounded-2xl border border-gray-200/80 dark:border-gray-800">
+                  <span className="text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 block">
+                    Est. Monthly Revenue (MRR)
+                  </span>
+                  <span className="font-mono text-xl font-black text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                    ${Math.round(mrr)}/mo
+                  </span>
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 block mt-0.5">
+                    Recurring subscriptions
+                  </span>
+                </div>
+
+                <div className="bg-white/80 dark:bg-gray-900/80 p-3.5 rounded-2xl border border-gray-200/80 dark:border-gray-800">
+                  <span className="text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 block">
+                    Total Revenue Collected
+                  </span>
+                  <span className="font-mono text-xl font-black text-gray-900 dark:text-white block mt-0.5">
+                    ${totalMembershipRevenue}.00
+                  </span>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 block mt-0.5">
+                    Via PayPal &amp; Stripe
+                  </span>
+                </div>
+
+                <div className="bg-white/80 dark:bg-gray-900/80 p-3.5 rounded-2xl border border-gray-200/80 dark:border-gray-800">
+                  <span className="text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 block">
+                    Deal Hunt Requests
+                  </span>
+                  <span className="font-mono text-xl font-black text-blue-600 dark:text-blue-400 block mt-0.5">
+                    {dealRequests.length}
+                  </span>
+                  <span className="text-[10px] text-blue-600/80 dark:text-blue-400/80 block mt-0.5">
+                    {dealRequests.filter((r) => r.status === 'pending').length} need response
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* VIP Member Emails Table Section */}
+            {(() => {
+              const filteredMembers = membershipsList.filter((m) => {
+                if (memberFilterStatus === 'active' && m.status !== 'active') return false;
+                if (memberFilterStatus === 'cancelled' && m.status === 'active') return false;
+                if (memberSearch.trim()) {
+                  const q = memberSearch.toLowerCase();
+                  return (
+                    m.email.toLowerCase().includes(q) ||
+                    (m.displayName && m.displayName.toLowerCase().includes(q)) ||
+                    (m.transactionId && m.transactionId.toLowerCase().includes(q))
+                  );
+                }
+                return true;
+              });
+
+              return (
+                <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200/90 dark:border-gray-800 shadow-xs overflow-hidden space-y-0">
+                  {/* Table Control Header */}
+                  <div className="p-5 border-b border-gray-200 dark:border-gray-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Users className="w-5 h-5 text-amber-500" />
+                        <h3 className="font-display text-base font-bold text-gray-900 dark:text-white">
+                          Registered VIP Subscribers ({filteredMembers.length})
+                        </h3>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        Member email addresses, active status, billing tier, and transaction receipts.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                      {/* Search Input */}
+                      <div className="relative flex-1 md:w-64">
+                        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={memberSearch}
+                          onChange={(e) => setMemberSearch(e.target.value)}
+                          placeholder="Search email, name, or receipt..."
+                          className="w-full text-xs pl-8 pr-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        />
+                      </div>
+
+                      {/* Filter Pills */}
+                      <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl border border-gray-200/80 dark:border-gray-700">
+                        <button
+                          type="button"
+                          onClick={() => setMemberFilterStatus('all')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            memberFilterStatus === 'all'
+                              ? 'bg-white dark:bg-gray-900 text-gray-950 dark:text-white shadow-xs'
+                              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                          }`}
+                        >
+                          All ({membershipsList.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMemberFilterStatus('active')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            memberFilterStatus === 'active'
+                              ? 'bg-emerald-500 text-white shadow-xs'
+                              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                          }`}
+                        >
+                          Active ({activeMembersCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMemberFilterStatus('cancelled')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            memberFilterStatus === 'cancelled'
+                              ? 'bg-gray-700 text-white shadow-xs'
+                              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                          }`}
+                        >
+                          Cancelled
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {filteredMembers.length === 0 ? (
+                    <div className="p-12 text-center space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
+                        <Users className="w-6 h-6" />
+                      </div>
+                      <h4 className="font-bold text-sm text-gray-900 dark:text-white">
+                        {memberSearch ? 'No members matching your search' : 'No VIP members enrolled yet'}
+                      </h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
+                        When visitors subscribe to DealScout VIP via PayPal or card checkout, their email addresses and transaction details will appear here automatically.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddMemberModal(true)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-all"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                        <span>Manually Enroll First Member</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead className="bg-gray-50 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 text-xs uppercase font-bold border-b border-gray-200 dark:border-gray-800">
+                          <tr>
+                            <th className="py-3.5 px-5">Subscriber Email</th>
+                            <th className="py-3.5 px-4">Member Name</th>
+                            <th className="py-3.5 px-4 text-center">Tier &amp; Price</th>
+                            <th className="py-3.5 px-4 text-center">Status</th>
+                            <th className="py-3.5 px-4">Payment &amp; Receipt</th>
+                            <th className="py-3.5 px-4">Joined / Renews</th>
+                            <th className="py-3.5 px-5 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                          {filteredMembers.map((member) => {
+                            const isCopied = copiedEmail === member.email;
+
+                            return (
+                              <tr
+                                key={member.id || member.email}
+                                className="hover:bg-amber-50/40 dark:hover:bg-gray-800/40 transition-colors"
+                              >
+                                {/* Member Email - Highlighted Prominently */}
+                                <td className="py-4 px-5">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-yellow-400 flex items-center justify-center font-bold shrink-0">
+                                      <Mail className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <a
+                                        href={`mailto:${member.email}`}
+                                        className="font-bold text-sm text-gray-950 dark:text-white hover:text-amber-600 dark:hover:text-amber-400 transition-colors inline-block"
+                                        title={`Send email to ${member.email}`}
+                                      >
+                                        {member.email}
+                                      </a>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCopyEmail(member.email)}
+                                          className="text-[11px] text-amber-700 dark:text-yellow-400 font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer"
+                                        >
+                                          {isCopied ? (
+                                            <>
+                                              <Check className="w-3 h-3 text-emerald-500" />
+                                              <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Copy className="w-3 h-3" />
+                                              <span>Copy Email</span>
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* Member Name */}
+                                <td className="py-4 px-4 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                  {member.displayName || member.userName || (
+                                    <span className="text-gray-400 italic">Not provided</span>
+                                  )}
+                                </td>
+
+                                {/* Tier & Billing */}
+                                <td className="py-4 px-4 text-center whitespace-nowrap">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-950 dark:text-yellow-400 border border-amber-300/60">
+                                    <Crown className="w-3 h-3 text-amber-500" />
+                                    <span>
+                                      {member.billingCycle === 'yearly' ? 'Yearly ($216/yr)' : 'Monthly ($20/mo)'}
+                                    </span>
+                                  </span>
+                                </td>
+
+                                {/* Status */}
+                                <td className="py-4 px-4 text-center whitespace-nowrap">
+                                  {member.status === 'active' ? (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60">
+                                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                      Active Member
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-700">
+                                      Cancelled
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Payment Details & Receipt */}
+                                <td className="py-4 px-4 text-xs">
+                                  <div className="space-y-0.5">
+                                    <span className="font-semibold text-gray-900 dark:text-white block">
+                                      {member.paymentMethod || 'PayPal Direct'}
+                                    </span>
+                                    {member.transactionId && (
+                                      <span className="font-mono text-[11px] text-gray-500 dark:text-gray-400 block bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 select-all truncate max-w-[200px]" title={member.transactionId}>
+                                        Tx: {member.transactionId}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Joined Date / Renews */}
+                                <td className="py-4 px-4 text-xs text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                                  <div>
+                                    <span className="font-semibold block">
+                                      {member.startDate ? new Date(member.startDate).toLocaleDateString() : 'Active'}
+                                    </span>
+                                    <span className="text-[10px] text-gray-400 block">
+                                      Renews: {member.renewsDate ? new Date(member.renewsDate).toLocaleDateString() : 'Auto'}
+                                    </span>
+                                  </div>
+                                </td>
+
+                                {/* Action Buttons */}
+                                <td className="py-4 px-5 text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleMemberStatus(member)}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        member.status === 'active'
+                                          ? 'bg-gray-100 dark:bg-gray-800 hover:bg-red-50 hover:text-red-600 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700'
+                                          : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                                      }`}
+                                      title={member.status === 'active' ? 'Mark member as Cancelled' : 'Reactivate membership'}
+                                    >
+                                      {member.status === 'active' ? 'Cancel' : 'Reactivate'}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Custom Deal Concierge Requests Table */}
+            <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200/90 dark:border-gray-800 shadow-xs overflow-hidden space-y-0">
+              <div className="p-5 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Search className="w-5 h-5 text-amber-500" />
+                    <h3 className="font-display text-base font-bold text-gray-900 dark:text-white">
+                      Custom Deal Concierge Requests ({dealRequests.length})
+                    </h3>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Items, stores, or flights that VIP members requested our scouts to hunt down.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {dealRequests.filter((r) => r.status === 'pending').length} pending review
+                  </span>
+                </div>
+              </div>
+
+              {dealRequests.length === 0 ? (
+                <div className="p-10 text-center text-xs text-gray-500">
+                  No VIP concierge deal requests submitted yet. Members can click &quot;Ask Us to Find Deals&quot; anytime.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 text-xs uppercase font-bold border-b border-gray-200 dark:border-gray-800">
+                      <tr>
+                        <th className="py-3.5 px-5">Requested Item / Store</th>
+                        <th className="py-3.5 px-4">Member Email</th>
+                        <th className="py-3.5 px-4">Target Budget</th>
+                        <th className="py-3.5 px-4 text-center">Status</th>
+                        <th className="py-3.5 px-4">Scout Response &amp; Code</th>
+                        <th className="py-3.5 px-5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                      {dealRequests.map((req) => (
+                        <tr key={req.id} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/40 transition-colors">
+                          <td className="py-4 px-5 max-w-xs">
+                            <span className="font-bold text-gray-900 dark:text-white block">
+                              {req.productOrStore}
+                            </span>
+                            {req.notes && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                                &quot;{req.notes}&quot;
+                              </p>
+                            )}
+                            {req.productUrl && (
+                              <a
+                                href={req.productUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 mt-1 font-mono"
+                              >
+                                <span>Link</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </td>
+
+                          <td className="py-4 px-4 text-xs">
+                            <a
+                              href={`mailto:${req.userEmail}`}
+                              className="font-bold text-gray-900 dark:text-white hover:text-amber-600 dark:hover:text-amber-400 block"
+                            >
+                              {req.userEmail}
+                            </a>
+                            <span className="text-[10px] text-gray-400">
+                              {req.userName || 'Member'} &bull; {new Date(req.createdAt).toLocaleDateString()}
+                            </span>
+                          </td>
+
+                          <td className="py-4 px-4 text-xs font-mono font-semibold text-gray-700 dark:text-gray-300">
+                            {req.targetBudget || 'Best Available'}
+                          </td>
+
+                          <td className="py-4 px-4 text-center whitespace-nowrap">
+                            <span
+                              className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
+                                req.status === 'deal_found'
+                                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                                  : req.status === 'researching'
+                                  ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300'
+                                  : 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-yellow-400 animate-pulse'
+                              }`}
+                            >
+                              {req.status === 'deal_found'
+                                ? '✓ Deal Found'
+                                : req.status === 'researching'
+                                ? 'Researching'
+                                : 'Pending'}
+                            </span>
+                          </td>
+
+                          <td className="py-4 px-4 text-xs max-w-sm">
+                            {req.adminResponse ? (
+                              <div className="space-y-1">
+                                <p className="text-gray-700 dark:text-gray-300 text-[11px] line-clamp-2">
+                                  {req.adminResponse}
+                                </p>
+                                {req.foundCouponCode && (
+                                  <span className="inline-block font-mono text-[10px] font-black uppercase bg-amber-400 text-gray-950 px-2 py-0.5 rounded">
+                                    Code: {req.foundCouponCode}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 italic text-[11px]">No response sent yet</span>
+                            )}
+                          </td>
+
+                          <td className="py-4 px-5 text-right whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReplyModal(req)}
+                              className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 ml-auto"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>{req.adminResponse ? 'Edit Reply' : 'Send Deal'}</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal: Enroll VIP Member Manually */}
+            {showAddMemberModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+                <div className="bg-white dark:bg-gray-900 rounded-3xl border border-amber-400/40 dark:border-amber-500/40 p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-5">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-amber-400 text-gray-950 flex items-center justify-center font-bold">
+                        <Crown className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-base text-gray-900 dark:text-white">
+                          Enroll VIP Member
+                        </h3>
+                        <p className="text-xs text-gray-500">Manual administrator registration</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMemberModal(false)}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                    >
+                      <LogOut className="w-5 h-5 rotate-180" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleManualAddMember} className="space-y-4">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-gray-600 dark:text-gray-300 mb-1">
+                        Member Email Address *
+                      </label>
+                      <input
+                        type="email"
+                        value={newMemberEmail}
+                        onChange={(e) => setNewMemberEmail(e.target.value)}
+                        placeholder="subscriber@example.com"
+                        required
+                        className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-gray-600 dark:text-gray-300 mb-1">
+                        Member Full Name (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={newMemberName}
+                        onChange={(e) => setNewMemberName(e.target.value)}
+                        placeholder="e.g. Michael Jordan"
+                        className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-gray-600 dark:text-gray-300 mb-1">
+                        Membership Plan Tier
+                      </label>
+                      <select
+                        value={newMemberPlan}
+                        onChange={(e) => setNewMemberPlan(e.target.value as 'monthly' | 'yearly')}
+                        className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      >
+                        <option value="monthly">Monthly VIP ($20/mo)</option>
+                        <option value="yearly">Yearly VIP ($216/yr · Save 10%)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-gray-600 dark:text-gray-300 mb-1">
+                        Payment Receipt / Transaction Note (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={newMemberTxId}
+                        onChange={(e) => setNewMemberTxId(e.target.value)}
+                        placeholder="e.g. PayPal TXN-817294 or Direct Wire"
+                        className="w-full text-xs font-mono px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddMemberModal(false)}
+                        className="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={addingMember}
+                        className="px-5 py-2.5 bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer disabled:opacity-60"
+                      >
+                        {addingMember ? 'Saving...' : 'Enroll VIP Member'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Modal: Reply to Concierge Deal Request */}
+            {selectedRequestForReply && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+                <div className="bg-white dark:bg-gray-900 rounded-3xl border border-amber-400/40 dark:border-amber-500/40 p-6 sm:p-7 max-w-lg w-full shadow-2xl space-y-5">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800">
+                    <div>
+                      <h3 className="font-bold text-base text-gray-900 dark:text-white">
+                        Respond to Deal Request
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        Replying to <strong>{selectedRequestForReply.userEmail}</strong> for &quot;{selectedRequestForReply.productOrStore}&quot;
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRequestForReply(null)}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer text-xs font-bold"
+                    >
+                      Close
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSubmitReply} className="space-y-4">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-gray-600 dark:text-gray-300 mb-1">
+                        Request Status
+                      </label>
+                      <select
+                        value={replyStatus}
+                        onChange={(e) => setReplyStatus(e.target.value as any)}
+                        className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      >
+                        <option value="deal_found">✓ Deal Found (Delivered)</option>
+                        <option value="researching">🔍 Researching (In Progress)</option>
+                        <option value="pending">⏳ Pending Review</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-gray-600 dark:text-gray-300 mb-1">
+                        Scout Message / Notes to Member *
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={replyResponseText}
+                        onChange={(e) => setReplyResponseText(e.target.value)}
+                        placeholder="We found a verified promo code for your requested item..."
+                        required
+                        className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-gray-600 dark:text-gray-300 mb-1">
+                        Found Promo / Coupon Code (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={replyCouponCode}
+                        onChange={(e) => setReplyCouponCode(e.target.value)}
+                        placeholder="e.g. VIP20OFF"
+                        className="w-full text-xs font-mono font-bold uppercase px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-amber-900 dark:text-yellow-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-gray-600 dark:text-gray-300 mb-1">
+                        Found Deal Link / Affiliate URL (Optional)
+                      </label>
+                      <input
+                        type="url"
+                        value={replyDealUrl}
+                        onChange={(e) => setReplyDealUrl(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full text-xs font-mono px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRequestForReply(null)}
+                        className="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={replySubmitting}
+                        className="px-5 py-2.5 bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>{replySubmitting ? 'Sending...' : 'Send Response'}</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

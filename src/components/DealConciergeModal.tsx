@@ -220,7 +220,7 @@ export const DealConciergeModal: React.FC<DealConciergeModalProps> = ({
                   onClick={onOpenMembership}
                   className="w-full max-w-md py-3.5 px-4 bg-amber-400 hover:bg-amber-500 text-gray-950 font-bold text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all cursor-pointer"
                 >
-                  Join VIP for $20/mo (Save 10% Yearly)
+                  Join VIP Club
                 </button>
               </div>
             ) : (

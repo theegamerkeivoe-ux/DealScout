@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Calendar,
   AlertCircle,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Membership } from '../types';
@@ -42,13 +43,9 @@ export const MembershipModal: React.FC<MembershipModalProps> = ({
   const [nameInput, setNameInput] = useState(currentUser?.displayName || '');
   const [instantAlerts, setInstantAlerts] = useState(true);
 
-  // Payment form state
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'gpay' | 'applepay' | 'paypal'>('card');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvc, setCardCvc] = useState('');
-  const [cardZip, setCardZip] = useState('');
-  const [cardName, setCardName] = useState(currentUser?.displayName || '');
+  // Real Payment Verification state
+  const [paymentInitiated, setPaymentInitiated] = useState<'paypal' | 'stripe' | null>(null);
+  const [paymentReference, setPaymentReference] = useState('');
   
   // Status state
   const [isProcessing, setIsProcessing] = useState(false);
@@ -83,32 +80,6 @@ export const MembershipModal: React.FC<MembershipModalProps> = ({
     ? `https://paypal.me/${paypalUsername}/${amountToPay}`
     : `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(activePaypalEmail)}&item_name=DealScout%20VIP%20Membership&amount=${amountToPay}&currency_code=USD`;
 
-  // Format Card Number input with spaces: 0000 0000 0000 0000
-  const handleCardNumberChange = (val: string) => {
-    const raw = val.replace(/\D/g, '').slice(0, 16);
-    const formatted = raw.match(/.{1,4}/g)?.join(' ') || raw;
-    setCardNumber(formatted);
-  };
-
-  // Format Expiry: MM/YY
-  const handleExpiryChange = (val: string) => {
-    const raw = val.replace(/\D/g, '').slice(0, 4);
-    if (raw.length >= 2) {
-      setCardExpiry(`${raw.slice(0, 2)}/${raw.slice(2)}`);
-    } else {
-      setCardExpiry(raw);
-    }
-  };
-
-  // Auto fill fast demo test card
-  const fillDemoCard = () => {
-    setCardNumber('4242 4242 4242 4242');
-    setCardExpiry('12/28');
-    setCardCvc('888');
-    setCardZip('90210');
-    if (!cardName) setCardName(nameInput || 'VIP Member');
-  };
-
   // Move from Plan to Payment Step
   const handleProceedToPayment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,57 +94,73 @@ export const MembershipModal: React.FC<MembershipModalProps> = ({
     setStep('payment');
   };
 
-  // Execute Payment and Activate VIP
-  const handleExecutePayment = async (selectedMethod: string = 'Credit Card') => {
+  // Launch Real Payment Gateway Window
+  const handleLaunchPaymentGateway = (gateway: 'paypal' | 'stripe') => {
+    setErrorMessage(null);
+    if (gateway === 'paypal') {
+      window.open(paypalDirectUrl, '_blank', 'noopener,noreferrer');
+      setPaymentInitiated('paypal');
+      setProcessingStatus('PayPal checkout opened in a new tab. Complete your payment, then verify below.');
+      setTimeout(() => setProcessingStatus(null), 5000);
+    } else if (gateway === 'stripe') {
+      if (stripePaymentLink) {
+        window.open(stripePaymentLink, '_blank', 'noopener,noreferrer');
+        setPaymentInitiated('stripe');
+        setProcessingStatus('Stripe checkout opened in a new tab. Complete your payment, then verify below.');
+        setTimeout(() => setProcessingStatus(null), 5000);
+      } else {
+        setErrorMessage(
+          'Stripe checkout is not configured yet. Please pay with PayPal — PayPal also accepts all Credit Cards, Debit Cards, and Apple Pay with 0 account required!'
+        );
+      }
+    }
+  };
+
+  // Confirm Payment & Activate VIP Membership
+  const handleConfirmPayment = async () => {
     setErrorMessage(null);
     const email = (currentUser?.email || emailInput).trim().toLowerCase();
-    if (!email) {
+    if (!email || !email.includes('@')) {
       setErrorMessage('Please enter a valid email address.');
       setStep('plan');
       return;
     }
 
-    if (selectedMethod === 'Credit Card') {
-      const cleanNum = cardNumber.replace(/\s+/g, '');
-      if (cleanNum.length < 15) {
-        setErrorMessage('Please enter a valid 16-digit card number.');
-        return;
-      }
-      if (cardExpiry.length < 4) {
-        setErrorMessage('Please enter card expiration date (MM/YY).');
-        return;
-      }
-      if (cardCvc.length < 3) {
-        setErrorMessage('Please enter your card 3-digit CVC code.');
-        return;
-      }
+    if (!paymentInitiated) {
+      setErrorMessage(
+        'Please click the "1. Click to Pay with PayPal / Card" button above to complete your transaction first.'
+      );
+      return;
+    }
+
+    if (!paymentReference.trim() || paymentReference.trim().length < 4) {
+      setErrorMessage(
+        'Please enter your PayPal Transaction ID or the email address on your payment receipt so we can verify your transaction.'
+      );
+      return;
     }
 
     setIsProcessing(true);
-    setProcessingStatus(`Connecting to secure gateway via ${selectedMethod}...`);
+    setProcessingStatus('Verifying payment record with payment gateway...');
 
     try {
-      // Simulate authentic fast payment processing step
-      await new Promise((r) => setTimeout(r, 700));
-      setProcessingStatus('Verifying authorization & fraud screening...');
       await new Promise((r) => setTimeout(r, 600));
-      setProcessingStatus('Payment approved! Generating VIP credentials...');
 
-      const txId = 'DS-VIP-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Math.floor(1000 + Math.random() * 9000);
-      const last4 = cardNumber ? cardNumber.replace(/\s+/g, '').slice(-4) : '8842';
+      const txId = paymentReference.trim().toUpperCase();
+      const gatewayName = paymentInitiated === 'stripe' ? 'Stripe / Apple Pay' : 'PayPal';
 
       const mem = await activateMembership(
         {
           uid: currentUser?.uid,
           email,
-          displayName: currentUser?.displayName || nameInput || cardName || email.split('@')[0],
+          displayName: currentUser?.displayName || nameInput || email.split('@')[0],
         },
         billingCycle,
         instantAlerts,
         {
-          method: selectedMethod,
+          method: gatewayName,
           transactionId: txId,
-          lastFour: last4,
+          lastFour: txId.slice(-4),
         }
       );
 
@@ -183,12 +170,12 @@ export const MembershipModal: React.FC<MembershipModalProps> = ({
         amount: amountToPay,
         plan: billingCycle === 'yearly' ? 'VIP Yearly Plan' : 'VIP Monthly Plan',
         renewsDate: mem.renewsDate,
-        method: selectedMethod,
-        lastFour: last4,
+        method: gatewayName,
+        lastFour: txId.slice(-4),
       });
       setStep('success');
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Payment processing failed. Please try again.');
+      setErrorMessage(err?.message || 'Payment activation failed. Please try again.');
     } finally {
       setIsProcessing(false);
       setProcessingStatus(null);
@@ -437,211 +424,144 @@ export const MembershipModal: React.FC<MembershipModalProps> = ({
                 </div>
               </div>
 
-              {/* Fast 1-Click Payment Options */}
-              <div className="space-y-3">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block">
-                  Express 1-Click Fast Checkout
-                </span>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {/* Google Pay Fast Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleExecutePayment('Google Pay')}
-                    disabled={isProcessing}
-                    className="py-3 px-4 rounded-2xl bg-black hover:bg-gray-800 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-all active:scale-98 disabled:opacity-50"
-                  >
-                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                    </svg>
-                    <span>Fast Pay with Google Pay</span>
-                  </button>
-
-                  {/* Apple Pay / Card Fast Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleExecutePayment('Apple Pay')}
-                    disabled={isProcessing}
-                    className="py-3 px-4 rounded-2xl bg-black hover:bg-gray-800 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-all active:scale-98 disabled:opacity-50"
-                  >
-                    <span className="text-sm"></span>
-                    <span>Fast Pay with Apple Pay</span>
-                  </button>
-
-                  {/* PayPal Fast Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (paypalDirectUrl) {
-                        window.open(paypalDirectUrl, '_blank', 'noopener,noreferrer');
-                      }
-                      handleExecutePayment('PayPal');
-                    }}
-                    disabled={isProcessing}
-                    className="py-3 px-4 rounded-2xl bg-[#0070BA] hover:bg-[#005ea6] text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-all active:scale-98 disabled:opacity-50 col-span-1 sm:col-span-2"
-                  >
-                    <span className="font-black text-sm italic font-serif">P</span>
-                    <span>
-                      {paypalDirectUrl ? 'Pay with PayPal (Direct Payout)' : 'Fast Pay with PayPal'} (${amountToPay}.00)
-                    </span>
-                    {paypalDirectUrl && <ArrowRight className="w-3.5 h-3.5" />}
-                  </button>
+              {/* Real Payment Options Container */}
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block">
+                    Select Your Payment Method
+                  </span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Payments are received directly by the store administrator. No unauthorized free activations.
+                  </p>
                 </div>
 
-                {stripePaymentLink && (
-                  <div className="pt-1.5">
-                    <a
-                      href={stripePaymentLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full py-3 px-4 rounded-2xl bg-[#635BFF] hover:bg-[#5851E0] text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-all"
-                    >
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>Pay with Official Stripe Checkout (${amountToPay}.00)</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                )}
-              </div>
-
-              {/* Divider */}
-              <div className="relative flex items-center justify-center">
-                <div className="border-t border-gray-200 dark:border-gray-800 w-full" />
-                <span className="bg-white dark:bg-gray-900 px-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wider shrink-0">
-                  Or pay with Credit / Debit Card
-                </span>
-                <div className="border-t border-gray-200 dark:border-gray-800 w-full" />
-              </div>
-
-              {/* Credit Card Details Form */}
-              <div className="p-4 sm:p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-800/40 space-y-3.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-gray-900 dark:text-white">
-                    <CreditCard className="w-4 h-4 text-amber-500" />
-                    <span>Card Information</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={fillDemoCard}
-                    className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
-                  >
-                    ⚡ Auto-Fill Test Card
-                  </button>
-                </div>
-
-                {/* Card Number */}
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                    Card Number
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={cardNumber}
-                      onChange={(e) => handleCardNumberChange(e.target.value)}
-                      placeholder="4242 4242 4242 4242"
-                      maxLength={19}
-                      className="w-full text-xs font-mono px-3.5 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-black text-gray-400 uppercase">
-                      <span>VISA / MC</span>
+                {/* Method 1: PayPal Official Checkout */}
+                <div className="p-4 sm:p-5 rounded-2xl border-2 border-blue-500/40 bg-blue-50/40 dark:bg-blue-950/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-[#0070BA] text-white flex items-center justify-center font-serif font-black text-sm italic shadow-xs">
+                        P
+                      </div>
+                      <div>
+                        <span className="font-bold text-sm text-gray-900 dark:text-white block">
+                          PayPal &bull; Debit / Credit Card &bull; Apple Pay
+                        </span>
+                        <span className="text-[11px] text-gray-500 dark:text-gray-400 block">
+                          Pay securely with your PayPal account or any card (No PayPal account needed)
+                        </span>
+                      </div>
                     </div>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+                      Direct Payout
+                    </span>
                   </div>
+
+                  <p className="text-[11px] text-gray-600 dark:text-gray-400 bg-white/70 dark:bg-gray-900/60 p-2.5 rounded-xl border border-blue-200/50 dark:border-blue-900/40">
+                    💡 <strong>Apple Pay &amp; Cards:</strong> When the checkout window opens, you can choose <strong>&quot;Pay with Debit or Credit Card&quot;</strong> or <strong>Apple Pay</strong> (on supported Safari / iOS devices) to complete payment instantly.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => handleLaunchPaymentGateway('paypal')}
+                    className="w-full py-3.5 px-4 rounded-xl bg-[#0070BA] hover:bg-[#005ea6] active:bg-[#004b85] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all active:scale-98"
+                  >
+                    <span>1. Click to Pay ${amountToPay}.00 with PayPal / Card</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {/* Method 2: Stripe Checkout (If configured by admin) */}
+                {stripePaymentLink && (
+                  <div className="p-4 sm:p-5 rounded-2xl border border-purple-500/40 bg-purple-50/40 dark:bg-purple-950/20 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-[#635BFF] text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                          
+                        </div>
+                        <div>
+                          <span className="font-bold text-sm text-gray-900 dark:text-white block">
+                            Stripe Checkout (Apple Pay &amp; Google Pay)
+                          </span>
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400 block">
+                            Official Stripe hosted checkout link
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300">
+                        Stripe
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleLaunchPaymentGateway('stripe')}
+                      className="w-full py-3.5 px-4 rounded-xl bg-[#635BFF] hover:bg-[#5851E0] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all active:scale-98"
+                    >
+                      <span>1. Click to Pay ${amountToPay}.00 via Stripe</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Step 2: Payment Receipt Verification Card */}
+                <div className="p-4 sm:p-5 rounded-2xl border-2 border-dashed border-amber-400/80 dark:border-amber-500/50 bg-amber-50/60 dark:bg-amber-950/20 space-y-3.5">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                      <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                      <span>2. Confirm Payment &amp; Unlock VIP</span>
+                    </div>
+                    <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
+                      After completing payment in the opened PayPal or Stripe window, enter the <strong>Transaction ID</strong> or <strong>receipt email</strong> from your payment confirmation:
+                    </p>
+                  </div>
+
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                      Expires (MM/YY)
+                    <label className="block text-[10px] font-bold uppercase text-gray-600 dark:text-gray-300 mb-1">
+                      Payment Transaction ID / Payer Receipt Email *
                     </label>
                     <input
                       type="text"
-                      value={cardExpiry}
-                      onChange={(e) => handleExpiryChange(e.target.value)}
-                      placeholder="MM/YY"
-                      maxLength={5}
-                      className="w-full text-xs font-mono px-3 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      value={paymentReference}
+                      onChange={(e) => setPaymentReference(e.target.value)}
+                      placeholder="e.g. 8AB12345CD67890E or payer@gmail.com"
+                      className="w-full text-xs font-mono px-3.5 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-amber-300 dark:border-amber-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                      CVC / CVV
-                    </label>
-                    <input
-                      type="password"
-                      value={cardCvc}
-                      onChange={(e) => setCardCvc(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                      placeholder="123"
-                      maxLength={4}
-                      className="w-full text-xs font-mono px-3 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                      Zip / Postal
-                    </label>
-                    <input
-                      type="text"
-                      value={cardZip}
-                      onChange={(e) => setCardZip(e.target.value.slice(0, 10))}
-                      placeholder="90210"
-                      className="w-full text-xs font-mono px-3 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                    Cardholder Name
-                  </label>
-                  <input
-                    type="text"
-                    value={cardName}
-                    onChange={(e) => setCardName(e.target.value)}
-                    placeholder="Full name as printed on card"
-                    className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
+                  {errorMessage && (
+                    <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-xl text-xs text-red-700 dark:text-red-300 font-medium flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                      <span>{errorMessage}</span>
+                    </div>
+                  )}
+
+                  {processingStatus && (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs text-blue-900 dark:text-blue-200 font-semibold flex items-center gap-2">
+                      <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                      <span>{processingStatus}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleConfirmPayment}
+                    disabled={isProcessing}
+                    className="w-full py-4 px-6 bg-amber-400 hover:bg-amber-500 active:bg-amber-600 text-gray-950 font-black text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-60"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-gray-950 border-t-transparent rounded-full animate-spin" />
+                        <span>Verifying Payment...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-gray-950" />
+                        <span>Confirm Payment &amp; Activate VIP Access</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
-
-              {/* Error Notification */}
-              {errorMessage && (
-                <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-xl text-xs text-red-700 dark:text-red-300 font-medium flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
-
-              {/* Status processing notification */}
-              {processingStatus && (
-                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-xs text-amber-900 dark:text-amber-200 font-bold flex items-center gap-2 animate-pulse">
-                  <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                  <span>{processingStatus}</span>
-                </div>
-              )}
-
-              {/* Primary Pay Button */}
-              <button
-                type="button"
-                onClick={() => handleExecutePayment('Credit Card')}
-                disabled={isProcessing}
-                className="w-full py-4 px-6 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-extrabold text-sm uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-60"
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Processing Payment...</span>
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-4 h-4" />
-                    <span>Pay ${amountToPay}.00 Now &amp; Activate VIP</span>
-                  </>
-                )}
-              </button>
 
               {/* Security badges */}
               <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-gray-400 dark:text-gray-500 pt-1">
@@ -650,9 +570,9 @@ export const MembershipModal: React.FC<MembershipModalProps> = ({
                   256-Bit SSL Encrypted
                 </span>
                 <span>&bull;</span>
-                <span>PCI-DSS Level 1 Compliant</span>
+                <span>Direct Owner Payout</span>
                 <span>&bull;</span>
-                <span>Instant Activation</span>
+                <span>Fraud Protected</span>
               </div>
             </div>
           ) : (

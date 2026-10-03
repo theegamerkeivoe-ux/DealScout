@@ -125,8 +125,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal, onOpenM
                     <Crown className="w-4 h-4 text-amber-500" />
                     <span>VIP Membership</span>
                   </div>
-                  <span className="text-[10px] uppercase font-black bg-amber-400 text-gray-950 px-1.5 py-0.5 rounded">
-                    $20/mo
+                  <span className="text-[10px] uppercase font-black bg-amber-400 text-gray-950 px-2 py-0.5 rounded-full">
+                    Join
                   </span>
                 </button>
               )}
