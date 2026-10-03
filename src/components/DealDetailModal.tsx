@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Tag,
   ArrowLeft,
+  ChevronRight,
   Share2,
   Info,
   MessageSquare,
@@ -246,23 +247,29 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
         className="relative bg-white dark:bg-gray-900 w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] rounded-3xl shadow-2xl border border-gray-200/80 dark:border-gray-800 flex flex-col overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150"
       >
         {/* Top Header / Breadcrumb / Actions - Pinned */}
-        <div className="flex items-center justify-between px-5 sm:px-7 py-3.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/70 backdrop-blur-md shrink-0">
-          <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400">
+        <div className="flex items-center justify-between px-5 sm:px-7 py-3.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/90 dark:bg-gray-950/80 backdrop-blur-md shrink-0">
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 min-w-0">
             <button
               type="button"
               onClick={onClose}
-              className="cursor-pointer hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-1"
+              className="cursor-pointer hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-1.5 shrink-0 font-medium group"
             >
-              All Deals
+              <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+              <span>All Deals</span>
             </button>
-            <span className="text-gray-300 dark:text-gray-700">&bull;</span>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/10 dark:bg-amber-400/15 border border-amber-400/30 text-amber-900 dark:text-yellow-400 font-extrabold text-xs">
+            <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 shrink-0" />
+            <div
+              onClick={handleGetDeal}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-400/15 via-yellow-400/10 to-amber-500/15 border border-amber-400/40 text-gray-900 dark:text-yellow-300 font-bold text-xs shadow-2xs hover:border-amber-400 cursor-pointer transition-all truncate"
+              title={`View ${deal.merchantName} deals`}
+            >
               <Store className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              <span className="truncate max-w-[130px] sm:max-w-[200px]">{deal.merchantName}</span>
+              <span className="truncate max-w-[120px] sm:max-w-[200px] font-display font-black tracking-tight">{deal.merchantName}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <ShareButton deal={deal} variant="header" />
             <button
               type="button"
@@ -280,75 +287,92 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
         <div className="p-5 sm:p-8 space-y-6 flex-1 overflow-y-auto overscroll-contain">
           {/* Merchant & Deal Header Section */}
           <div className="space-y-4">
-            {/* Top Meta Bar: Store Name, Verified Badge, Category, and Audience Tier */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5">
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Store Name Badge */}
+            {/* Premium Store Brand Showcase Banner */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-50/90 via-yellow-50/60 to-amber-50/40 dark:from-gray-800/90 dark:via-gray-800/60 dark:to-gray-900 border border-amber-300/70 dark:border-amber-500/30 shadow-xs flex flex-wrap items-center justify-between gap-3.5 transition-all">
+              {/* Left: Brand Identity */}
+              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                {/* Store Avatar Logo */}
                 <div
                   onClick={handleGetDeal}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-400/40 dark:border-amber-500/30 text-amber-950 dark:text-yellow-300 font-extrabold text-xs sm:text-sm tracking-tight shadow-2xs hover:bg-amber-400/20 transition-all cursor-pointer group"
-                  title={`Click to visit official ${deal.merchantName} store`}
+                  className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-white dark:bg-gray-900 border-2 border-amber-400/60 dark:border-amber-500/50 p-2 shadow-sm flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:border-amber-400 hover:scale-105 transition-all group"
+                  title={`Click to visit official ${deal.merchantName} storefront`}
                 >
-                  <Store className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span className="font-display font-black tracking-tight">{deal.merchantName}</span>
-                  <ExternalLink className="w-3.5 h-3.5 text-amber-600/70 dark:text-yellow-400/70 group-hover:translate-x-0.5 transition-transform" />
+                  {deal.merchantLogo && !imgError ? (
+                    <img
+                      src={deal.merchantLogo}
+                      alt={`${deal.merchantName} logo`}
+                      referrerPolicy="no-referrer"
+                      onError={() => setImgError(true)}
+                      className="max-h-full max-w-full object-contain group-hover:scale-110 transition-transform"
+                    />
+                  ) : (
+                    <span className="w-full h-full rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 text-gray-950 font-display font-black text-2xl flex items-center justify-center shadow-2xs">
+                      {merchantInitial}
+                    </span>
+                  )}
                 </div>
 
-                {/* Verified Store Pill */}
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold border border-emerald-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Verified Store</span>
-                </span>
+                {/* Store Name & Verification Details */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleGetDeal}
+                      className="font-display font-black text-lg sm:text-xl text-gray-950 dark:text-white tracking-tight hover:text-amber-600 dark:hover:text-amber-400 transition-colors cursor-pointer truncate text-left"
+                      title={`Visit official ${deal.merchantName} store`}
+                    >
+                      {deal.merchantName}
+                    </button>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-[10px] font-black border border-emerald-300/40 uppercase tracking-wider shadow-2xs">
+                      <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      Verified Store
+                    </span>
+                  </div>
 
-                {deal.category && (
-                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 hidden sm:inline-block">
-                    &bull; {deal.category}
-                  </span>
-                )}
+                  <div className="flex items-center gap-2.5 text-xs text-gray-500 dark:text-gray-400 mt-1 flex-wrap">
+                    {deal.category && (
+                      <span className="px-2 py-0.5 rounded-md bg-gray-200/70 dark:bg-gray-700/60 font-semibold text-gray-700 dark:text-gray-300 text-[11px]">
+                        {deal.category}
+                      </span>
+                    )}
+                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1 text-[11px]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Official Direct Merchant
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              {/* Audience Pill */}
-              {deal.vipExclusive ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-400 text-gray-950 font-mono text-[10px] font-black uppercase tracking-wider shadow-2xs">
-                  <Crown className="w-3 h-3 text-gray-950" />
-                  <span>VIP Exclusive</span>
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-300/40">
-                  <span>🌐 Free Deal</span>
-                </span>
-              )}
+              {/* Right: Quick Actions */}
+              <div className="flex items-center gap-2 shrink-0">
+                {deal.vipExclusive ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-400 text-gray-950 font-mono text-[10px] font-black uppercase tracking-wider shadow-2xs">
+                    <Crown className="w-3 h-3 text-gray-950" />
+                    <span>VIP Drop</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-300/40">
+                    <span>🌐 Free Deal</span>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleGetDeal}
+                  className="px-3.5 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 active:bg-black dark:bg-white dark:hover:bg-gray-100 dark:active:bg-gray-200 text-white dark:text-gray-950 font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer hover:scale-102"
+                  title={`Open official ${deal.merchantName} store in new window`}
+                >
+                  <Store className="w-3.5 h-3.5 text-amber-400 dark:text-amber-500" />
+                  <span>Visit Store</span>
+                  <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
+                </button>
+              </div>
             </div>
 
-            {/* Main Title Row with Store Logo */}
-            <div className="flex items-start gap-4">
-              {/* Brand Logo Container */}
-              <div
-                onClick={handleGetDeal}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white dark:bg-gray-800 border-2 border-amber-400/50 dark:border-amber-500/40 p-2.5 shadow-md flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:border-amber-400 hover:scale-102 transition-all group"
-                title={`Visit ${deal.merchantName}`}
-              >
-                {deal.merchantLogo && !imgError ? (
-                  <img
-                    src={deal.merchantLogo}
-                    alt={`${deal.merchantName} logo`}
-                    referrerPolicy="no-referrer"
-                    onError={() => setImgError(true)}
-                    className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
-                  />
-                ) : (
-                  <span className="w-full h-full rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 text-gray-950 font-display font-black text-2xl sm:text-3xl flex items-center justify-center shadow-xs">
-                    {merchantInitial}
-                  </span>
-                )}
-              </div>
-
-              {/* Title takes full remaining width, no squishing */}
-              <div className="flex-1 min-w-0">
-                <h1 className="font-display text-xl sm:text-2xl font-black text-gray-900 dark:text-white leading-snug break-words">
-                  {deal.title}
-                </h1>
-              </div>
+            {/* Main Deal Title */}
+            <div>
+              <h1 className="font-display text-xl sm:text-2xl font-black text-gray-900 dark:text-white leading-snug break-words">
+                {deal.title}
+              </h1>
             </div>
 
             {/* Dedicated Discount Offer Banner */}
@@ -506,9 +530,9 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
 
           {/* Official Store Verification Card & Primary GET DEAL Button */}
           <div className="space-y-3 pt-1">
-            <div className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-amber-50/70 dark:bg-gray-800/60 border border-amber-300/60 dark:border-gray-700/80">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-1 flex items-center justify-center shrink-0 shadow-2xs">
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-amber-50/80 via-yellow-50/40 to-transparent dark:from-gray-800/80 dark:via-gray-800/50 dark:to-gray-900 border border-amber-300/60 dark:border-amber-500/30 shadow-2xs">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-11 h-11 rounded-xl bg-white dark:bg-gray-900 border border-amber-300 dark:border-gray-700 p-1.5 flex items-center justify-center shrink-0 shadow-2xs">
                   {deal.merchantLogo && !imgError ? (
                     <img
                       src={deal.merchantLogo}
@@ -516,20 +540,20 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
                       className="max-h-full max-w-full object-contain"
                     />
                   ) : (
-                    <span className="font-display font-black text-amber-500 text-sm">{merchantInitial}</span>
+                    <span className="font-display font-black text-amber-500 text-base">{merchantInitial}</span>
                   )}
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-display font-extrabold text-sm text-gray-950 dark:text-white truncate">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-display font-black text-sm sm:text-base text-gray-950 dark:text-white truncate">
                       {deal.merchantName}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300/40">
-                      <BadgeCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300/50 uppercase tracking-wider">
+                      <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                       Official Store
                     </span>
                   </div>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">
                     Verified direct checkout &bull; Hand-tested promo codes &bull; Guaranteed savings
                   </p>
                 </div>
@@ -538,7 +562,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({
               <button
                 type="button"
                 onClick={handleGetDeal}
-                className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-amber-700 dark:text-yellow-400 hover:underline shrink-0 cursor-pointer"
+                className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 dark:text-yellow-400 hover:text-amber-900 dark:hover:text-yellow-300 hover:underline shrink-0 cursor-pointer px-3 py-1.5 rounded-lg bg-amber-400/10 hover:bg-amber-400/20 transition-colors"
               >
                 <span>Visit Store</span>
                 <ExternalLink className="w-3.5 h-3.5" />

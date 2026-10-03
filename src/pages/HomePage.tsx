@@ -409,27 +409,37 @@ export const HomePage: React.FC<HomePageProps> = ({
 
         {/* All Active Deals Section */}
         {!loading && (standardDeals.length > 0 || (featuredDeals.length > 0 && hasActiveFilters)) && (
-          <section className="space-y-4">
-            <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-800 pt-8 pb-1">
-              <div className="flex items-center gap-2.5">
-                <span className="w-2.5 h-2.5 bg-amber-400 rounded-full" />
-                <div>
-                  <h2 className="font-display text-xl font-bold text-gray-900 dark:text-white leading-none">
-                    {featuredDeals.length > 0 && !hasActiveFilters ? 'More Verified Deals' : 'Active Deals'}
-                  </h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 pt-0.5">
-                    Updated regularly with tested promo codes
-                  </p>
+          <section className="space-y-6 pt-4">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-t border-gray-200/80 dark:border-gray-800/80 pt-8 pb-1">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/10 dark:bg-amber-400/15 border border-amber-400/30 text-amber-800 dark:text-amber-300 text-[11px] font-black uppercase tracking-wider">
+                  <Tag className="w-3 h-3 text-amber-500" />
+                  <span>Verified Store Catalog</span>
                 </div>
+                <h2 className="font-display text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+                  {featuredDeals.length > 0 && !hasActiveFilters ? 'All Verified Deals' : 'Active Deals & Offers'}
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                  Click any deal to reveal tested promo codes, official store discounts, and instant savings.
+                </p>
               </div>
-              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                {hasActiveFilters ? filteredDeals.length : standardDeals.length} available
-              </span>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                <span className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-bold border border-gray-200 dark:border-gray-700/80 shadow-2xs">
+                  {hasActiveFilters ? filteredDeals.length : standardDeals.length} Offers Available
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {(hasActiveFilters ? filteredDeals : standardDeals).map((deal) => (
-                <DealCard key={deal.id} deal={deal} onSelectDeal={onSelectDeal} />
+                <DealCard
+                  key={deal.id}
+                  deal={deal}
+                  onSelectDeal={onSelectDeal}
+                  isVip={Boolean(membership && membership.status === 'active')}
+                  onOpenMembership={onOpenMembership}
+                />
               ))}
             </div>
           </section>

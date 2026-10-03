@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ExternalLink, Copy, Check, Tag, ShieldCheck, Clock, Crown, Lock } from 'lucide-react';
+import { ExternalLink, Copy, Check, Tag, ShieldCheck, Clock, Crown, Lock, BadgeCheck } from 'lucide-react';
 import { Deal } from '../types';
 import { recordDealClick, isDealExpired } from '../services/dealService';
 import { ShareButton } from './ShareButton';
@@ -97,31 +97,39 @@ export const DealCard: React.FC<DealCardProps> = ({
       <div className="flex items-start justify-between gap-3 mb-3.5">
         {/* Left: Store Logo & Verified Status */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="w-12 h-12 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200/80 dark:border-gray-700/80 p-1.5 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
+          <div className="w-12 h-12 rounded-xl bg-white dark:bg-gray-800 border border-gray-200/90 dark:border-gray-700/90 p-1.5 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden group-hover:border-amber-400/70 transition-colors">
             {deal.merchantLogo && !imgError ? (
               <img
                 src={deal.merchantLogo}
                 alt={`${deal.merchantName} logo`}
                 referrerPolicy="no-referrer"
                 onError={() => setImgError(true)}
-                className="max-h-full max-w-full object-contain"
+                className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
               />
             ) : (
-              <div className="w-full h-full rounded-lg bg-amber-400 text-gray-950 flex items-center justify-center font-display font-black text-lg">
+              <div className="w-full h-full rounded-lg bg-gradient-to-br from-amber-400 to-yellow-500 text-gray-950 flex items-center justify-center font-display font-black text-lg shadow-2xs">
                 {merchantInitial}
               </div>
             )}
           </div>
           <div className="min-w-0 flex-1">
             <span
-              className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 block truncate"
+              className="font-display font-black text-sm text-gray-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors block truncate tracking-tight"
               title={deal.merchantName}
             >
               {deal.merchantName}
             </span>
-            <div className="flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              <span>Verified Store</span>
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+              <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
+                <BadgeCheck className="w-3 h-3 text-emerald-500 shrink-0" />
+                Verified
+              </span>
+              {deal.category && (
+                <>
+                  <span className="text-gray-300 dark:text-gray-700">&bull;</span>
+                  <span className="truncate max-w-[90px]">{deal.category}</span>
+                </>
+              )}
             </div>
           </div>
         </div>
