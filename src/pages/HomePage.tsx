@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Deal, Membership } from '../types';
 import { DealCard } from '../components/DealCard';
+import { AdSenseBanner } from '../components/AdSenseBanner';
 import { isDealExpired } from '../services/dealService';
 import { useAuth } from '../context/AuthContext';
 
@@ -444,6 +445,9 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
           </section>
         )}
+
+        {/* Google AdSense Responsive Placement */}
+        <AdSenseBanner className="py-4" />
       </div>
     </div>
   );
