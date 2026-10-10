@@ -238,7 +238,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 key={store}
                 type="button"
                 onClick={() => setSelectedFilter(selectedFilter === store ? 'all' : store)}
-                className={`hidden sm:inline-block px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
                   selectedFilter.toLowerCase() === store.toLowerCase()
                     ? 'bg-amber-400 text-gray-950 shadow-xs'
                     : 'bg-white/10 hover:bg-white/20 text-gray-300'
