@@ -9,6 +9,7 @@ import {
   createUserWithEmailAndPassword,
   updateProfile,
   signOut,
+  signInAnonymously,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 import { createOrGetAffiliate, getAffiliateByEmail } from '../services/affiliateService';
@@ -475,8 +476,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sessionStorage.setItem(ADMIN_VERIFIED_KEY, 'true');
       }
 
+      // If Firebase Auth does not currently have an active user, authenticate connection anonymously
+      if (!auth.currentUser) {
+        try {
+          await signInAnonymously(auth);
+        } catch (anonErr) {
+          console.debug('Firebase anonymous sign in handled:', anonErr);
+        }
+      }
+
       const ownerUser: AppUser = {
-        uid: 'owner_' + emailToVerify.replace(/[^a-z0-9]/g, '_'),
+        uid: auth.currentUser?.uid || ('owner_' + emailToVerify.replace(/[^a-z0-9]/g, '_')),
         email: emailToVerify,
         displayName: 'Administrator (Keivoe)',
       };

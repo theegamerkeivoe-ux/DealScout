@@ -570,7 +570,14 @@ export const AdminDashboard: React.FC<{ onNavigateHome: () => void }> = ({ onNav
       setActiveTab('manage');
     } catch (err: any) {
       console.error('Error saving deal:', err);
-      setFormError(err.message || 'Error saving deal to Firestore');
+      let errorMsg = err?.message || 'Error saving deal to Firestore';
+      try {
+        const parsed = JSON.parse(err.message);
+        if (parsed?.error) {
+          errorMsg = `Firestore error: ${parsed.error}`;
+        }
+      } catch {}
+      setFormError(errorMsg);
     } finally {
       setFormSubmitting(false);
     }

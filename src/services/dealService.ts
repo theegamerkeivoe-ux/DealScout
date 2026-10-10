@@ -199,11 +199,19 @@ export async function getDealById(idOrSlug: string): Promise<Deal | null> {
 export async function createDeal(
   dealData: Omit<Deal, 'id' | 'createdAt' | 'updatedAt' | 'clicks'>
 ): Promise<string> {
+  // Strip any undefined keys so Firestore doesn't reject the payload
+  const sanitized: Record<string, any> = {};
+  for (const [k, v] of Object.entries(dealData)) {
+    if (v !== undefined) {
+      sanitized[k] = v;
+    }
+  }
+
   try {
     const dealsRef = collection(db, DEALS_COLLECTION);
     const now = new Date().toISOString();
     const docRef = await addDoc(dealsRef, {
-      ...dealData,
+      ...sanitized,
       clicks: 0,
       createdAt: now,
       updatedAt: now,
@@ -217,11 +225,18 @@ export async function createDeal(
 // Update deal (Admin only)
 export async function updateDeal(id: string, updates: Partial<Deal>): Promise<void> {
   const path = `${DEALS_COLLECTION}/${id}`;
+  const sanitized: Record<string, any> = {};
+  for (const [k, v] of Object.entries(updates)) {
+    if (v !== undefined) {
+      sanitized[k] = v;
+    }
+  }
+
   try {
     const docRef = doc(db, DEALS_COLLECTION, id);
     const now = new Date().toISOString();
     await updateDoc(docRef, {
-      ...updates,
+      ...sanitized,
       updatedAt: now,
     });
   } catch (error) {
